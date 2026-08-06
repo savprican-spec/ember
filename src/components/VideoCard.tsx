@@ -75,20 +75,36 @@ export function VideoCard({ clip, active, muted, onToggleMute }: VideoCardProps)
         {clip.online && <span className="badge badge--live">Live nearby</span>}
       </header>
 
-      <aside className="video-card__rail">
-        <button type="button" className="rail-btn" onClick={toggleLike} aria-label="Like">
+      <aside className="video-card__rail" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="rail-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            toggleLike()
+          }}
+          aria-label="Like"
+        >
           <Heart size={28} fill={liked ? 'currentColor' : 'none'} className={liked ? 'is-liked' : ''} />
           <span>{formatCount(likes)}</span>
         </button>
-        <button type="button" className="rail-btn" aria-label="Comments">
+        <button type="button" className="rail-btn" aria-label="Comments" onClick={(e) => e.stopPropagation()}>
           <MessageCircle size={28} />
           <span>{formatCount(clip.comments)}</span>
         </button>
-        <button type="button" className="rail-btn" aria-label="Share">
+        <button type="button" className="rail-btn" aria-label="Share" onClick={(e) => e.stopPropagation()}>
           <Share2 size={26} />
           <span>Share</span>
         </button>
-        <button type="button" className="rail-btn" onClick={onToggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>
+        <button
+          type="button"
+          className="rail-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleMute()
+          }}
+          aria-label={muted ? 'Unmute' : 'Mute'}
+        >
           {muted ? <VolumeX size={24} /> : <Volume2 size={24} />}
         </button>
       </aside>

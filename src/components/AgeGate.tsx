@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 
 const STORAGE_KEY = 'ember-age-verified'
 
@@ -16,10 +16,17 @@ export function AgeGate({ onVerified }: AgeGateProps) {
     }
   }, [])
 
-  function verify() {
-    localStorage.setItem(STORAGE_KEY, '1')
+  function verify(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (exiting) return
+    try {
+      localStorage.setItem(STORAGE_KEY, '1')
+    } catch {
+      /* private mode */
+    }
     setExiting(true)
-    window.setTimeout(onVerified, 420)
+    window.setTimeout(onVerified, 320)
   }
 
   function leave() {

@@ -85,7 +85,9 @@ p {
   flex: 1;
   min-height: 0;
   position: relative;
-  padding-bottom: calc(var(--nav-h) + var(--safe-bottom));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .brand {
@@ -147,6 +149,7 @@ p {
 
 .age-gate__card {
   position: relative;
+  z-index: 2;
   width: min(420px, 100%);
   text-align: center;
   animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -182,6 +185,10 @@ p {
   border-radius: 999px;
   padding: 0.95rem 1.25rem;
   cursor: pointer;
+  position: relative;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
 }
 
@@ -202,20 +209,19 @@ p {
   color: var(--ink-muted);
 }
 
-/* Bottom nav */
+/* Bottom nav — in-flow so feed never covers taps */
 .bottom-nav {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
   height: calc(var(--nav-h) + var(--safe-bottom));
   padding: 0.45rem 0.75rem var(--safe-bottom);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.25rem;
-  background: linear-gradient(180deg, transparent, rgba(10, 9, 8, 0.92) 28%, #0a0908);
-  backdrop-filter: blur(10px);
+  background: #0a0908;
+  border-top: 1px solid var(--line);
+  pointer-events: auto;
 }
 
 .bottom-nav__item {
@@ -227,6 +233,9 @@ p {
   color: var(--ink-muted);
   font-size: 0.68rem;
   border-radius: 14px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  pointer-events: auto;
   transition: color 0.2s ease, background 0.2s ease;
 }
 
@@ -360,11 +369,12 @@ p {
   position: absolute;
   right: 0.7rem;
   bottom: 7.5rem;
-  z-index: 2;
+  z-index: 6;
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
   align-items: center;
+  pointer-events: auto;
 }
 
 .rail-btn {
@@ -378,6 +388,10 @@ p {
   cursor: pointer;
   font-size: 0.72rem;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  pointer-events: auto;
+  padding: 0.35rem;
 }
 
 .rail-btn .is-liked {
@@ -1119,12 +1133,6 @@ p {
     margin: 0 auto;
     border-left: 1px solid var(--line);
     border-right: 1px solid var(--line);
-  }
-
-  .bottom-nav {
-    max-width: 480px;
-    left: 50%;
-    transform: translateX(-50%);
   }
 
   .profile-hero {

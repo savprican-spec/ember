@@ -33,10 +33,13 @@ export function VideoCard({ clip, active, muted, onToggleMute }: VideoCardProps)
     }
   }, [active, muted, paused])
 
-  function toggleLike() {
-    setLiked((v) => !v)
-    setLikes((n) => (liked ? n - 1 : n + 1))
-  }
+function toggleLike() {
+  setLiked((wasLiked) => {
+    const next = !wasLiked
+    setLikes((n) => n + (next ? 1 : -1))
+    return next
+  })
+}
 
   function togglePause() {
     setPaused((p) => !p)

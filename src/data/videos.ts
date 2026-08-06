@@ -22,7 +22,7 @@ export const clips: VideoClip[] = [
     handle: '@kai.after',
     caption: 'Hotel lobby energy. Who’s free in the next hour?',
     tags: ['tonight', 'hotel', 'discreet'],
-    likes: 12840,
+    likes: 842,
     comments: 312,
     distance: '0.4 mi',
     online: true,
@@ -110,6 +110,7 @@ export const clips: VideoClip[] = [
 
 export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 10_000) return `${Math.floor(n / 100) / 10}K`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }

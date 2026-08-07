@@ -1,6 +1,15 @@
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
+const links = [
+  { to: '/admin', label: 'Overview', end: true },
+  { to: '/admin/users', label: 'Users' },
+  { to: '/admin/uploads', label: 'Uploads' },
+  { to: '/admin/messages', label: 'Messages' },
+  { to: '/admin/reports', label: 'Reports' },
+  { to: '/admin/events', label: 'Activity' },
+] as const
+
 export function AdminLayout() {
   const { user, loading, logout } = useAuth()
 
@@ -20,32 +29,38 @@ export function AdminLayout() {
   return (
     <div className="admin-shell">
       <aside className="admin-nav">
-        <p className="brand brand--sm">EMBER</p>
-        <h1>Admin hub</h1>
-        <p className="admin-nav__sub">Full operator view — private albums, inboxes, reports. Nothing hidden.</p>
-        <nav>
-          <NavLink to="/admin" end className={({ isActive }) => (isActive ? 'active' : '')}>
-            Overview
-          </NavLink>
-          <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Users
-          </NavLink>
-          <NavLink to="/admin/uploads" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Uploads
-          </NavLink>
-          <NavLink to="/admin/messages" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Messages
-          </NavLink>
-          <NavLink to="/admin/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Reports
-          </NavLink>
-          <NavLink to="/admin/events" className={({ isActive }) => (isActive ? 'active' : '')}>
-            Activity
-          </NavLink>
+        <div className="admin-nav__top">
+          <div className="admin-nav__brand-row">
+            <div>
+              <p className="brand brand--sm">EMBER</p>
+              <h1>Admin hub</h1>
+            </div>
+            <button type="button" className="btn btn--ghost admin-nav__logout-mobile" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+          <p className="admin-nav__sub">Operator view — albums, inboxes, reports.</p>
+        </div>
+        <nav className="admin-nav__links" aria-label="Admin sections">
+          {links.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={'end' in link ? link.end : false}
+              className={({ isActive }) =>
+                isActive ? 'admin-nav__link is-active' : 'admin-nav__link'
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
         </nav>
-        <button type="button" className="btn btn--ghost" onClick={logout}>
-          Sign out
-        </button>
+        <div className="admin-nav__foot">
+          <p className="admin-nav__user">{user.email}</p>
+          <button type="button" className="btn btn--ghost" onClick={logout}>
+            Sign out
+          </button>
+        </div>
       </aside>
       <section className="admin-content">
         <Outlet />

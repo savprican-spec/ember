@@ -24,52 +24,55 @@ const upload = multer({
 
 export const uploadsRouter = Router()
 
-uploadsRouter.post('/', requireAuth, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'file required' })
-  const { title = '', caption = '', visibility = 'public' } = req.body ?? {}
-  const vis = ['public', 'private', 'followers'].includes(visibility) ? visibility : 'public'
-  const id = randomUUID()
-  const now = new Date().toISOString()
-  const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
+uploadsRouter.post('/', requireAuth, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed' })
+    if (!req.file) return res.status(400).json({ error: 'file required' })
+    const { title = '', caption = '', visibility = 'public' } = req.body ?? {}
+    const vis = ['public', 'private', 'followers'].includes(visibility) ? visibility : 'public'
+    const id = randomUUID()
+    const now = new Date().toISOString()
+    const mediaType = req.file.mimetype.startsWith('video/') ? 'video' : 'image'
 
-  db.prepare(
-    `INSERT INTO uploads (id, user_id, title, caption, visibility, media_type, file_path, mime_type, size_bytes, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    req.user!.id,
-    String(title).slice(0, 120),
-    String(caption).slice(0, 500),
-    vis,
-    mediaType,
-    req.file.filename,
-    req.file.mimetype,
-    req.file.size,
-    now,
-  )
-
-  db.prepare(
-    `INSERT INTO events (id, user_id, session_id, event_type, target_type, target_id, meta_json, created_at)
-     VALUES (?, ?, ?, 'upload', 'upload', ?, ?, ?)`,
-  ).run(
-    randomUUID(),
-    req.user!.id,
-    req.headers['x-session-id'] ?? null,
-    id,
-    JSON.stringify({ visibility: vis, mediaType }),
-    now,
-  )
-
-  res.status(201).json({
-    upload: {
+    db.prepare(
+      `INSERT INTO uploads (id, user_id, title, caption, visibility, media_type, file_path, mime_type, size_bytes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
       id,
-      title,
-      caption,
-      visibility: vis,
+      req.user!.id,
+      String(title).slice(0, 120),
+      String(caption).slice(0, 500),
+      vis,
       mediaType,
-      url: `/api/media/${req.file.filename}`,
-      createdAt: now,
-    },
+      req.file.filename,
+      req.file.mimetype,
+      req.file.size,
+      now,
+    )
+
+    db.prepare(
+      `INSERT INTO events (id, user_id, session_id, event_type, target_type, target_id, meta_json, created_at)
+       VALUES (?, ?, ?, 'upload', 'upload', ?, ?, ?)`,
+    ).run(
+      randomUUID(),
+      req.user!.id,
+      req.headers['x-session-id'] ?? null,
+      id,
+      JSON.stringify({ visibility: vis, mediaType }),
+      now,
+    )
+
+    res.status(201).json({
+      upload: {
+        id,
+        title,
+        caption,
+        visibility: vis,
+        mediaType,
+        url: `/api/media/${req.file.filename}`,
+        createdAt: now,
+      },
+    })
   })
 })
 

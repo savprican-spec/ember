@@ -42,9 +42,22 @@ npm run dev
 7. **Observability**: keep using `/api/events` + add product analytics (PostHog/Mixpanel) if you want funnels.
 8. **Backups** for DB + media.
 
-## Suggested first public beta
+## Can you launch on Cloudflare?
 
-1. Deploy this Node server (`npm run build && npm start`) on a VPS.
-2. Share the URL with a small group.
-3. Watch **Admin → Users / Uploads / Activity**.
-4. Rotate admin password and JWT secret before any wider share.
+**Partially — not the whole app on Cloudflare alone.**
+
+| Piece | Cloudflare fit |
+| --- | --- |
+| DNS + CDN + DDoS in front of your server | Yes — good idea |
+| **R2** media storage | Yes — recommended for uploads |
+| **Pages** (static site only) | Only the demo UI — **no** registration/uploads/admin API |
+| **Workers** as the full backend | Not with this code as-is (needs rewrite; no native SQLite/disk uploads) |
+
+**Recommended Cloudflare-friendly launch shape:**
+
+1. Run this Node API on a small VPS (Hetzner, DigitalOcean, Fly.io, Railway).
+2. Point your domain through **Cloudflare DNS/proxy**.
+3. Store clips in **Cloudflare R2** (next upgrade from local disk).
+4. Keep legal adult content only (Cloudflare focuses enforcement on illegal/harmful content; still read their current AUP).
+
+GitHub Pages remains fine for the static marketing/demo build, not for the live product.

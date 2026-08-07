@@ -47,12 +47,24 @@ export function AuthPage() {
       <h1>{mode === 'login' ? 'Welcome back' : 'Create your heat profile'}</h1>
       <p className="page-header__sub">18+ only. Your clips and meetups stay on EMBER.</p>
 
-      <div className="auth-tabs">
-        <button type="button" className={mode === 'register' ? 'is-active' : ''} onClick={() => setMode('register')}>
-          Register
+      <div className="auth-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'register'}
+          className={mode === 'register' ? 'is-active' : ''}
+          onClick={() => setMode('register')}
+        >
+          Join
         </button>
-        <button type="button" className={mode === 'login' ? 'is-active' : ''} onClick={() => setMode('login')}>
-          Sign in
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'login'}
+          className={mode === 'login' ? 'is-active' : ''}
+          onClick={() => setMode('login')}
+        >
+          Log in
         </button>
       </div>
 

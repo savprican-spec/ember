@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../../lib/api'
 
 type Conversation = {
@@ -26,9 +26,12 @@ type Thread = {
 }
 
 export function AdminMessagesPage() {
+  const [params, setParams] = useSearchParams()
+  const conversationId = params.get('c')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [active, setActive] = useState<Thread | null>(null)
   const [error, setError] = useState('')
+  const [loadingThread, setLoadingThread] = useState(false)
 
   useEffect(() => {
     api<{ conversations: Conversation[] }>('/api/admin/messages')
@@ -36,46 +39,74 @@ export function AdminMessagesPage() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed'))
   }, [])
 
-  async function openThread(id: string) {
-    const data = await api<Thread>(`/api/admin/messages/${id}`)
-    setActive(data)
+  useEffect(() => {
+    if (!conversationId) {
+      setActive(null)
+      return
+    }
+    setLoadingThread(true)
+    api<Thread>(`/api/admin/messages/${conversationId}`)
+      .then(setActive)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to open thread'))
+      .finally(() => setLoadingThread(false))
+  }, [conversationId])
+
+  function openThread(id: string) {
+    const next = new URLSearchParams(params)
+    next.set('c', id)
+    setParams(next)
   }
 
-  if (active) {
+  function closeThread() {
+    const next = new URLSearchParams(params)
+    next.delete('c')
+    setParams(next)
+    setActive(null)
+  }
+
+  if (conversationId) {
     return (
       <div className="admin-page">
         <p>
-          <button type="button" className="linkish" onClick={() => setActive(null)}>
+          <button type="button" className="linkish" onClick={closeThread}>
             ← All conversations
           </button>
         </p>
-        <header>
-          <h2>Conversation</h2>
-          <p>
-            {active.members.map((m) => (
-              <span key={m.id}>
-                <Link to={`/admin/users/${m.id}`}>
-                  {m.displayName} @{m.handle}
-                </Link>{' '}
-              </span>
-            ))}
-          </p>
-        </header>
-        <div className="admin-thread">
-          {active.messages.map((m) => (
-            <article key={m.id} className="admin-thread__msg">
-              <header>
-                <strong>
-                  {m.senderName} @{m.senderHandle}
-                </strong>
-                <time>{new Date(m.createdAt).toLocaleString()}</time>
-              </header>
-              <p>{m.body}</p>
-              <span className="muted">{m.senderEmail}</span>
-            </article>
-          ))}
-          {!active.messages.length && <p className="muted">Empty thread.</p>}
-        </div>
+        {loadingThread && <p className="admin-loading">Loading thread…</p>}
+        {error && <p className="form-error">{error}</p>}
+        {active && (
+          <>
+            <header>
+              <h2>Conversation</h2>
+              <p>
+                {active.members.map((m) => (
+                  <span key={m.id}>
+                    <Link to={`/admin/users/${m.id}`}>
+                      {m.displayName} @{m.handle}
+                    </Link>{' '}
+                  </span>
+                ))}
+              </p>
+            </header>
+            <div className="admin-thread">
+              {active.messages.map((m) => (
+                <article key={m.id} className="admin-thread__msg">
+                  <header>
+                    <strong>
+                      <Link to={`/admin/users/${m.senderId}`}>
+                        {m.senderName} @{m.senderHandle}
+                      </Link>
+                    </strong>
+                    <time>{new Date(m.createdAt).toLocaleString()}</time>
+                  </header>
+                  <p>{m.body}</p>
+                  <span className="muted">{m.senderEmail}</span>
+                </article>
+              ))}
+              {!active.messages.length && <p className="muted">Empty thread.</p>}
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -84,7 +115,7 @@ export function AdminMessagesPage() {
     <div className="admin-page">
       <header>
         <h2>All inboxes</h2>
-        <p>Full message visibility across every member conversation.</p>
+        <p>Full message visibility — tap a conversation to open the full thread.</p>
       </header>
       {error && <p className="form-error">{error}</p>}
       <div className="admin-table-wrap">
@@ -101,11 +132,15 @@ export function AdminMessagesPage() {
             {conversations.map((c) => (
               <tr key={c.id}>
                 <td>
-                  <button type="button" className="linkish" onClick={() => void openThread(c.id)}>
-                    {c.members.map((m) => `@${m.handle}`).join(' · ')}
+                  <button type="button" className="linkish" onClick={() => openThread(c.id)}>
+                    {c.members.map((m) => `@${m.handle}`).join(' · ') || 'Untitled chat'}
                   </button>
                 </td>
-                <td>{c.preview || '—'}</td>
+                <td>
+                  <button type="button" className="linkish" onClick={() => openThread(c.id)}>
+                    {c.preview || '—'}
+                  </button>
+                </td>
                 <td>{c.messageCount}</td>
                 <td>{new Date(c.lastMessageAt).toLocaleString()}</td>
               </tr>

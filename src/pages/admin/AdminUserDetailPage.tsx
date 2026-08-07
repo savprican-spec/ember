@@ -112,7 +112,7 @@ export function AdminUserDetailPage() {
       <ul className="admin-list">
         {(data.conversations || []).map((c) => (
           <li key={c.id}>
-            <Link to="/admin/messages">
+            <Link to={`/admin/messages?c=${c.id}`}>
               <strong>{c.messageCount} messages</strong>
               <span>{c.preview || 'No preview'}</span>
               <time>{new Date(c.updatedAt).toLocaleString()}</time>
@@ -126,11 +126,13 @@ export function AdminUserDetailPage() {
       <ul className="admin-list">
         {(data.reportsAbout || []).map((r) => (
           <li key={r.id}>
-            <strong>{r.reason}</strong> · {r.status}
-            <span>
-              by @{r.reporterHandle} ({r.reporterName})
-            </span>
-            <time>{new Date(r.createdAt).toLocaleString()}</time>
+            <Link to={`/admin/reports?status=${encodeURIComponent(r.status || 'all')}`}>
+              <strong>{r.reason}</strong> · {r.status}
+              <span>
+                by @{r.reporterHandle} ({r.reporterName})
+              </span>
+              <time>{new Date(r.createdAt).toLocaleString()}</time>
+            </Link>
           </li>
         ))}
         {(data.reportsAbout || []).length === 0 && <li className="muted">No reports against this user.</li>}

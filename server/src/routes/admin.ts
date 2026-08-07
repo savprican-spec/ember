@@ -132,6 +132,9 @@ adminRouter.get('/overview', (_req, res) => {
 
 adminRouter.get('/users', (req, res) => {
   const q = String(req.query.q ?? '').trim().toLowerCase()
+  const plan = String(req.query.plan ?? 'all') // all | premium | basic
+  const map = String(req.query.map ?? 'all') // all | visible | hidden
+
   let rows: Record<string, unknown>[]
   if (q) {
     rows = db
@@ -148,6 +151,11 @@ adminRouter.get('/users', (req, res) => {
       .prepare(`SELECT * FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 200`)
       .all() as Record<string, unknown>[]
   }
+
+  if (plan === 'premium') rows = rows.filter((r) => isPremium(r))
+  if (plan === 'basic') rows = rows.filter((r) => !isPremium(r))
+  if (map === 'visible') rows = rows.filter((r) => isPremium(r) && Boolean(r.map_visible))
+  if (map === 'hidden') rows = rows.filter((r) => !Boolean(r.map_visible) || !isPremium(r))
 
   const withCounts = rows.map((row) => {
     const counts = db
@@ -167,7 +175,7 @@ adminRouter.get('/users', (req, res) => {
     }
   })
 
-  res.json({ users: withCounts })
+  res.json({ users: withCounts, filters: { plan, map, q } })
 })
 
 adminRouter.get('/users/:id', (req, res) => {

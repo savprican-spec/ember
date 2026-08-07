@@ -1467,13 +1467,29 @@ p {
   margin-bottom: 1.25rem;
 }
 
-.admin-stats div {
+.admin-stats div,
+.admin-stat-tile {
   background: var(--bg-elevated);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.9rem;
   display: grid;
   gap: 0.25rem;
+  color: inherit;
+  text-align: left;
+  transition: border-color 0.2s ease, transform 0.15s ease, background 0.2s ease;
+}
+
+a.admin-stat-tile {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+a.admin-stat-tile:hover,
+a.admin-stat-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--ember) 55%, var(--line));
+  background: color-mix(in srgb, var(--ember) 10%, var(--bg-elevated));
+  transform: translateY(-1px);
 }
 
 .admin-stats strong {
@@ -1481,9 +1497,68 @@ p {
   font-family: var(--font-display);
 }
 
-.admin-stats span {
+.admin-stats span,
+.admin-stat-tile span {
   color: var(--ink-muted);
   font-size: 0.75rem;
+}
+
+.admin-stat-tile em {
+  font-style: normal;
+  color: color-mix(in srgb, var(--ember) 80%, var(--ink-muted));
+  font-size: 0.68rem;
+}
+
+.admin-media-card--button {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.admin-media-card--button:hover {
+  border-color: color-mix(in srgb, var(--ember) 50%, var(--line));
+}
+
+.admin-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.admin-lightbox__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: pointer;
+}
+
+.admin-lightbox__panel {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(90dvh, 900px);
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-lightbox__panel video,
+.admin-lightbox__panel img {
+  width: 100%;
+  max-height: 55dvh;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #000;
 }
 
 .admin-grid {

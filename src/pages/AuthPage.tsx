@@ -127,9 +127,14 @@ export function AuthPage() {
 
       <p className="auth-foot">
         <Link to="/">Back to feed</Link>
-        {' · '}
-        <Link to="/admin">Admin hub</Link>
       </p>
+      <div className="auth-admin-box">
+        <p>Operators: log in above with the admin account, then open the hub.</p>
+        <Link className="btn btn--ghost" to="/admin">
+          Open Admin hub
+        </Link>
+        <p className="form-hint">admin@ember.app</p>
+      </div>
     </div>
   )
 }

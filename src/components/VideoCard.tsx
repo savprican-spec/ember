@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, MapPin } from 'lucide-react'
 import type { VideoClip } from '../data/videos'
 import { formatCount } from '../data/videos'
+import { track } from '../lib/api'
 
 type VideoCardProps = {
   clip: VideoClip
@@ -34,12 +35,13 @@ export function VideoCard({ clip, active, muted, onToggleMute }: VideoCardProps)
   }, [active, muted, paused])
 
 function toggleLike() {
-  setLiked((wasLiked) => {
-    const next = !wasLiked
-    setLikes((n) => n + (next ? 1 : -1))
-    return next
-  })
-}
+    setLiked((wasLiked) => {
+      const next = !wasLiked
+      setLikes((n) => n + (next ? 1 : -1))
+      track(next ? 'like' : 'unlike', 'clip', clip.id)
+      return next
+    })
+  }
 
   function togglePause() {
     setPaused((p) => !p)

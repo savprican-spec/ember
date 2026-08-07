@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Flag, Send } from 'lucide-react'
+import { ArrowLeft, Flag, MapPin, Send } from 'lucide-react'
 import { api, track } from '../lib/api'
 
 type InboxItem = {
@@ -18,19 +18,49 @@ type ThreadMessage = {
   senderHandle?: string
 }
 
+type Meetup = {
+  id: string
+  conversationId: string
+  status: string
+  role: 'proposer' | 'recipient'
+  exactShared: boolean
+  waitingOnYou: boolean
+  waitingOnThem: boolean
+  myExact: { lat: number; lng: number; mapsUrl: string } | null
+  theirExact: { lat: number; lng: number; mapsUrl: string } | null
+}
+
+async function readDeviceLocation(): Promise<{ lat: number; lng: number } | null> {
+  if (!navigator.geolocation) return null
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30_000 },
+    )
+  })
+}
+
 export function MessagesPage() {
   const [threads, setThreads] = useState<InboxItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [peer, setPeer] = useState<InboxItem['peer']>(null)
   const [messages, setMessages] = useState<ThreadMessage[]>([])
+  const [meetup, setMeetup] = useState<Meetup | null>(null)
   const [draft, setDraft] = useState('')
   const [handle, setHandle] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [meetupBusy, setMeetupBusy] = useState(false)
 
   async function loadInbox() {
     const data = await api<{ conversations: InboxItem[] }>('/api/messages/inbox')
     setThreads(data.conversations)
+  }
+
+  async function loadMeetup(conversationId: string) {
+    const data = await api<{ meetup: Meetup | null }>(`/api/meetups/conversation/${conversationId}`)
+    setMeetup(data.meetup)
   }
 
   useEffect(() => {
@@ -50,6 +80,7 @@ export function MessagesPage() {
       setActiveId(data.id)
       setPeer(data.peer)
       setMessages(data.messages)
+      await loadMeetup(data.id)
       await loadInbox()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to open chat')
@@ -95,9 +126,67 @@ export function MessagesPage() {
     }
   }
 
+  async function proposeMeetup() {
+    if (!activeId) return
+    setMeetupBusy(true)
+    setError('')
+    try {
+      const loc = await readDeviceLocation()
+      const data = await api<{ meetup: Meetup }>('/api/meetups/propose', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId: activeId, ...(loc || {}) }),
+      })
+      setMeetup(data.meetup)
+      await openThread(activeId)
+      track('meetup_propose', 'conversation', activeId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not propose meetup')
+    } finally {
+      setMeetupBusy(false)
+    }
+  }
+
+  async function acceptMeetup() {
+    if (!meetup) return
+    setMeetupBusy(true)
+    setError('')
+    try {
+      const loc = await readDeviceLocation()
+      const data = await api<{ meetup: Meetup }>(`/api/meetups/${meetup.id}/accept`, {
+        method: 'POST',
+        body: JSON.stringify(loc || {}),
+      })
+      setMeetup(data.meetup)
+      if (activeId) await openThread(activeId)
+      track('meetup_accept', 'meetup', meetup.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not accept meetup')
+    } finally {
+      setMeetupBusy(false)
+    }
+  }
+
+  async function declineMeetup() {
+    if (!meetup || !activeId) return
+    setMeetupBusy(true)
+    setError('')
+    try {
+      await api<{ meetup: Meetup }>(`/api/meetups/${meetup.id}/decline`, { method: 'POST' })
+      await openThread(activeId)
+      track('meetup_decline', 'meetup', meetup.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not decline')
+    } finally {
+      setMeetupBusy(false)
+    }
+  }
+
   async function reportPeer() {
     if (!peer) return
-    const reason = window.prompt('Report reason: spam, harassment, underage_suspicion, nonconsensual, scam, illegal, other', 'harassment')
+    const reason = window.prompt(
+      'Report reason: spam, harassment, underage_suspicion, nonconsensual, scam, illegal, other',
+      'harassment',
+    )
     if (!reason) return
     try {
       await api('/api/reports', {
@@ -136,6 +225,77 @@ export function MessagesPage() {
             <Flag size={18} />
           </button>
         </header>
+
+        <section className="meetup-bar">
+          {!meetup || (meetup.status !== 'pending' && meetup.status !== 'accepted') ? (
+            <>
+              <p>Map pins stay approximate. Exact location unlocks only if you both agree to meet.</p>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={meetupBusy}
+                onClick={() => void proposeMeetup()}
+              >
+                <MapPin size={16} />
+                {meetupBusy ? 'Proposing…' : 'Propose meetup'}
+              </button>
+            </>
+          ) : null}
+
+          {meetup?.status === 'pending' && meetup.waitingOnThem ? (
+            <>
+              <p>Waiting for {peer.displayName} to accept. Exact location stays private until then.</p>
+              <button type="button" className="btn btn--ghost" disabled={meetupBusy} onClick={() => void declineMeetup()}>
+                Cancel request
+              </button>
+            </>
+          ) : null}
+
+          {meetup?.status === 'pending' && meetup.waitingOnYou ? (
+            <>
+              <p>{peer.displayName} wants to meet. Accept to share exact locations with each other.</p>
+              <div className="meetup-bar__actions">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={meetupBusy}
+                  onClick={() => void acceptMeetup()}
+                >
+                  Accept & share exact
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={meetupBusy}
+                  onClick={() => void declineMeetup()}
+                >
+                  Decline
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {meetup?.status === 'accepted' && meetup.exactShared ? (
+            <div className="meetup-exact">
+              <p>
+                <strong>Meetup agreed.</strong> Exact locations unlocked for this chat only.
+              </p>
+              {meetup.theirExact ? (
+                <a className="ghost-chip" href={meetup.theirExact.mapsUrl} target="_blank" rel="noreferrer">
+                  <MapPin size={14} />
+                  Their exact pin
+                </a>
+              ) : null}
+              {meetup.myExact ? (
+                <a className="ghost-chip" href={meetup.myExact.mapsUrl} target="_blank" rel="noreferrer">
+                  <MapPin size={14} />
+                  Your shared pin
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
         <div className="thread-body">
           {messages.map((m) => (
             <div key={m.id} className={`bubble bubble--${m.fromMe ? 'me' : 'them'}`}>
@@ -145,7 +305,11 @@ export function MessagesPage() {
           ))}
           {!messages.length && <p className="muted">No messages yet. Say something direct.</p>}
         </div>
-        {error && <p className="form-error" style={{ padding: '0 1rem' }}>{error}</p>}
+        {error && (
+          <p className="form-error" style={{ padding: '0 1rem' }}>
+            {error}
+          </p>
+        )}
         <form
           className="composer"
           onSubmit={(e) => {
@@ -172,7 +336,7 @@ export function MessagesPage() {
       <header className="page-header">
         <p className="brand brand--sm">EMBER</p>
         <h1>Inbox</h1>
-        <p className="page-header__sub">Direct, discreet — admins can review for safety.</p>
+        <p className="page-header__sub">Direct meets — exact pins only after both agree.</p>
       </header>
 
       <form

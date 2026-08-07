@@ -873,6 +873,48 @@ p {
   font-size: 0.75rem;
 }
 
+.meetup-bar {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--ember) 12%, transparent), transparent 70%),
+    var(--bg-elevated);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.meetup-bar p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.meetup-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.meetup-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.meetup-exact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.meetup-exact p {
+  flex: 1 1 100%;
+  color: var(--ink);
+}
+
 .thread-body {
   flex: 1;
   overflow-y: auto;

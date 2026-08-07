@@ -136,8 +136,8 @@ export function MapPage() {
       </header>
 
       <p className="map-encounter-tagline">
-        Casual encounters only — not dating. Pins are approximate for safety (never exact GPS). Browse free;
-        post what you want and go live with Premium.
+        Casual encounters only — not dating. Pins are approximate for safety. Exact location is shared only
+        if both of you agree to meet in chat. Browse free; go live with Premium.
       </p>
 
       {user?.premium ? (
@@ -173,7 +173,9 @@ export function MapPage() {
           <button type="button" className="btn btn--primary" disabled={pulseBusy} onClick={() => void postPulse()}>
             {pulseBusy ? 'Posting…' : 'Go live on map'}
           </button>
-          <p className="form-hint">Your pin shows a nearby area only — exact location is never shared.</p>
+          <p className="form-hint">
+            Your pin shows a nearby area only. Exact GPS can be shared later in chat if both agree to meet.
+          </p>
           {pulseMsg && <p className="form-hint">{pulseMsg}</p>}
         </section>
       ) : (

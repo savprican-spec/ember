@@ -1,7 +1,7 @@
 /**
- * Location privacy helpers — never expose exact GPS on the map.
- * Pins are offset into a fuzzy radius so people can be found nearby without
- * revealing a precise street address or room.
+ * Location privacy helpers.
+ * - Map pins are always approximate.
+ * - Exact GPS is stored privately and only revealed after both users accept a meetup.
  */
 
 function hashToUnit(seed: string): number {
@@ -29,7 +29,6 @@ export function fuzzyCoords(
   const metersPerLng = Math.max(metersPerLat * Math.cos((lat * Math.PI) / 180), 1)
   const fuzzyLat = lat + (dist * Math.cos(angle)) / metersPerLat
   const fuzzyLng = lng + (dist * Math.sin(angle)) / metersPerLng
-  // Coarse rounding (~11m) so clients never get sub-meter precision
   return {
     lat: Math.round(fuzzyLat * 1e4) / 1e4,
     lng: Math.round(fuzzyLng * 1e4) / 1e4,
@@ -38,7 +37,11 @@ export function fuzzyCoords(
   }
 }
 
-/** Fuzz before persisting so the DB never holds raw phone GPS */
+/** Public/map-safe coords derived from a precise point */
 export function privacySafeLocation(lat: number, lng: number, userId: string) {
   return fuzzyCoords(lat, lng, userId)
+}
+
+export function mapsLink(lat: number, lng: number) {
+  return `https://maps.google.com/?q=${lat},${lng}`
 }

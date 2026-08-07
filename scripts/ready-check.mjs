@@ -208,8 +208,9 @@ async function main() {
       : fail('Map pin never exact GPS', JSON.stringify(mine))
   }
 
-  // Follow another user
+  // Follow another user + meetup exact-location consent
   let peerId = ''
+  let peerToken = ''
   {
     const { res, data } = await api('/api/auth/register', {
       method: 'POST',
@@ -224,6 +225,7 @@ async function main() {
     })
     if (res.ok) {
       peerId = data.user.id
+      peerToken = data.token
       pass('Register peer for follow')
     } else fail('Register peer for follow', JSON.stringify(data).slice(0, 200))
   }
@@ -236,6 +238,86 @@ async function main() {
     res.ok && data.following
       ? pass('Follow user on basic/premium')
       : fail('Follow user on basic/premium', JSON.stringify(data))
+  }
+
+  let conversationId = ''
+  let meetupId = ''
+  const userExact = { lat: 37.774929, lng: -122.419418 }
+  const peerExact = { lat: 37.7849, lng: -122.4094 }
+
+  {
+    const { res, data } = await api('/api/messages/start', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: peerId }),
+    })
+    if (res.ok && data.conversationId) {
+      conversationId = data.conversationId
+      pass('Start conversation for meetup')
+    } else fail('Start conversation for meetup', JSON.stringify(data))
+  }
+
+  {
+    const { res, data } = await api('/api/meetups/propose', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId, ...userExact }),
+    })
+    if (res.ok && data.meetup?.status === 'pending' && !data.meetup.exactShared) {
+      meetupId = data.meetup.id
+      pass('Meetup proposed — exact still locked')
+    } else fail('Meetup proposed — exact still locked', JSON.stringify(data).slice(0, 250))
+  }
+
+  {
+    const { data } = await api(`/api/meetups/conversation/${conversationId}`, {
+      headers: { Authorization: `Bearer ${peerToken}` },
+    })
+    data.meetup?.waitingOnYou && !data.meetup.theirExact
+      ? pass('Peer sees pending meetup without exact coords')
+      : fail('Peer sees pending meetup without exact coords', JSON.stringify(data.meetup))
+  }
+
+  {
+    const { res, data } = await api(`/api/meetups/${meetupId}/accept`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${peerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(peerExact),
+    })
+    const unlocked =
+      res.ok &&
+      data.meetup?.exactShared &&
+      data.meetup?.theirExact &&
+      Math.abs(data.meetup.theirExact.lat - userExact.lat) < 0.00001 &&
+      Math.abs(data.meetup.myExact.lat - peerExact.lat) < 0.00001
+    unlocked
+      ? pass('Meetup accepted — exact locations unlocked')
+      : fail('Meetup accepted — exact locations unlocked', JSON.stringify(data).slice(0, 300))
+  }
+
+  {
+    const { data } = await api(`/api/meetups/conversation/${conversationId}`, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+    const ok =
+      data.meetup?.exactShared &&
+      data.meetup?.theirExact &&
+      Math.abs(data.meetup.theirExact.lat - peerExact.lat) < 0.00001
+    ok
+      ? pass('Proposer can read peer exact after consent')
+      : fail('Proposer can read peer exact after consent', JSON.stringify(data.meetup))
+  }
+
+  {
+    const { data } = await api('/api/map/nearby')
+    const mine = (data.people || []).find((p) => p.id === userId)
+    const stillFuzzy =
+      mine &&
+      mine.approximate === true &&
+      (Math.abs(mine.lat - userExact.lat) > 0.001 || Math.abs(mine.lng - userExact.lng) > 0.001)
+    stillFuzzy
+      ? pass('Public map still approximate after meetup consent')
+      : fail('Public map still approximate after meetup consent', JSON.stringify(mine))
   }
 
   // Admin checks

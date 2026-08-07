@@ -111,6 +111,22 @@ db.exec(`
     PRIMARY KEY (follower_id, following_id)
   );
 
+  CREATE TABLE IF NOT EXISTS meetups (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    proposer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    proposer_lat REAL,
+    proposer_lng REAL,
+    recipient_lat REAL,
+    recipient_lng REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    accepted_at TEXT,
+    expires_at TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
   CREATE INDEX IF NOT EXISTS idx_uploads_created ON uploads(created_at);
   CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at);
@@ -122,6 +138,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_conversation_members_user ON conversation_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id);
   CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id);
+  CREATE INDEX IF NOT EXISTS idx_meetups_conversation ON meetups(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_meetups_status ON meetups(status, updated_at);
 `)
 
 function ensureColumn(table: string, column: string, definition: string) {
@@ -140,6 +158,8 @@ ensureColumn('users', 'premium_until', 'TEXT')
 ensureColumn('users', 'stripe_subscription_id', 'TEXT')
 ensureColumn('users', 'lat', 'REAL')
 ensureColumn('users', 'lng', 'REAL')
+ensureColumn('users', 'exact_lat', 'REAL')
+ensureColumn('users', 'exact_lng', 'REAL')
 ensureColumn('users', 'looking_note', "TEXT DEFAULT ''")
 ensureColumn('users', 'looking_posted_at', 'TEXT')
 

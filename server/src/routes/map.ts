@@ -14,7 +14,7 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
   const rows = db
     .prepare(
       `SELECT id, display_name, handle, age, bio, avatar_url, looking_for, looking_note, looking_posted_at,
-              last_seen_at, lat, lng, premium, premium_until, role, map_visible
+              last_seen_at, lat, lng, exact_lat, exact_lng, premium, premium_until, role, map_visible
        FROM users
        WHERE role != 'admin' AND map_visible = 1 AND premium = 1
        ORDER BY COALESCE(looking_posted_at, last_seen_at) DESC
@@ -27,10 +27,20 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
     .map((r, i) => {
       const baseLat = 37.7849
       const baseLng = -122.4094
-      const rawLat = typeof r.lat === 'number' ? r.lat : baseLat + ((i % 7) - 3) * 0.008
-      const rawLng = typeof r.lng === 'number' ? r.lng : baseLng + ((i % 5) - 2) * 0.01
-      // Always re-fuzz on read — never return stored coords as-is
-      const approx = fuzzyCoords(rawLat, rawLng, String(r.id))
+      // Prefer private exact as source, then fuzzy fallback — always emit approximate pins
+      const sourceLat =
+        typeof r.exact_lat === 'number'
+          ? r.exact_lat
+          : typeof r.lat === 'number'
+            ? r.lat
+            : baseLat + ((i % 7) - 3) * 0.008
+      const sourceLng =
+        typeof r.exact_lng === 'number'
+          ? r.exact_lng
+          : typeof r.lng === 'number'
+            ? r.lng
+            : baseLng + ((i % 5) - 2) * 0.01
+      const approx = fuzzyCoords(sourceLat, sourceLng, String(r.id))
       const postedAt = r.looking_posted_at ? new Date(String(r.looking_posted_at)).getTime() : 0
       const lastSeen = r.last_seen_at ? new Date(String(r.last_seen_at)).getTime() : 0
       const fresh = postedAt > 0 && Date.now() - postedAt < 1000 * 60 * 90
@@ -63,7 +73,7 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
   res.json({
     people,
     locationPrivacy:
-      'Pins are approximate (±250–650m). Exact GPS is never shown on the map for safety.',
+      'Pins are approximate (±250–650m). Exact GPS is never shown on the map — it can only be shared after both people agree to meet in chat.',
     note: 'Casual encounters only — Premium members posting what they want right now. Browse free; go live with Premium.',
   })
 })
@@ -86,11 +96,13 @@ mapRouter.post('/pulse', requirePremium, (req, res) => {
         looking_note = ?,
         looking_posted_at = ?,
         map_visible = ?,
+        exact_lat = ?,
+        exact_lng = ?,
         lat = ?,
         lng = ?,
         last_seen_at = ?
        WHERE id = ?`,
-    ).run(lookingFor, lookingNote, now, mapVisible, safe.lat, safe.lng, now, req.user!.id)
+    ).run(lookingFor, lookingNote, now, mapVisible, lat, lng, safe.lat, safe.lng, now, req.user!.id)
   } else {
     db.prepare(
       `UPDATE users SET
@@ -125,19 +137,16 @@ mapRouter.post('/location', requireAuth, (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'lat and lng required' })
   }
-  // Never persist raw GPS — fuzz before write
+  // Keep exact privately; public map fields stay fuzzy
   const safe = privacySafeLocation(lat, lng, req.user!.id)
-  db.prepare(`UPDATE users SET lat = ?, lng = ?, last_seen_at = ? WHERE id = ?`).run(
-    safe.lat,
-    safe.lng,
-    new Date().toISOString(),
-    req.user!.id,
-  )
+  db.prepare(
+    `UPDATE users SET exact_lat = ?, exact_lng = ?, lat = ?, lng = ?, last_seen_at = ? WHERE id = ?`,
+  ).run(lat, lng, safe.lat, safe.lng, new Date().toISOString(), req.user!.id)
   res.json({
     ok: true,
     approximate: true,
     accuracyMeters: safe.accuracyMeters,
-    // Return only the privacy-safe coords the map will use
+    // Map-facing coords only — exact is never returned here
     lat: safe.lat,
     lng: safe.lng,
   })

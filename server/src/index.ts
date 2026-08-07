@@ -14,6 +14,7 @@ import { messagesRouter } from './routes/messages.js'
 import { reportsRouter } from './routes/reports.js'
 import { followsRouter } from './routes/follows.js'
 import { mapRouter } from './routes/map.js'
+import { meetupsRouter } from './routes/meetups.js'
 import { requireAuth, requireAdmin, type AuthUser } from './auth.js'
 import { db } from './db.js'
 
@@ -50,6 +51,7 @@ app.use('/api/messages', messagesRouter)
 app.use('/api/reports', reportsRouter)
 app.use('/api/follows', followsRouter)
 app.use('/api/map', mapRouter)
+app.use('/api/meetups', meetupsRouter)
 app.use('/api/events', eventsRouter)
 app.use('/api/admin', adminRouter)
 
@@ -95,9 +97,12 @@ app.patch('/api/me', requireAuth, (req, res) => {
     lat === null ? null : typeof lat === 'number' && Number.isFinite(lat) ? lat : (row.lat as number | null)
   let nextLng: number | null =
     lng === null ? null : typeof lng === 'number' && Number.isFinite(lng) ? lng : (row.lng as number | null)
-  // Never store exact GPS from clients
+  let nextExactLat = row.exact_lat as number | null
+  let nextExactLng = row.exact_lng as number | null
   if (typeof lat === 'number' && Number.isFinite(lat) && typeof lng === 'number' && Number.isFinite(lng)) {
     const safe = privacySafeLocation(lat, lng, req.user!.id)
+    nextExactLat = lat
+    nextExactLng = lng
     nextLat = safe.lat
     nextLng = safe.lng
   }
@@ -120,6 +125,8 @@ app.patch('/api/me', requireAuth, (req, res) => {
       avatar_url = ?,
       lat = ?,
       lng = ?,
+      exact_lat = ?,
+      exact_lng = ?,
       last_seen_at = ?
      WHERE id = ?`,
   ).run(
@@ -132,6 +139,8 @@ app.patch('/api/me', requireAuth, (req, res) => {
     avatarUrl ?? row.avatar_url,
     nextLat,
     nextLng,
+    nextExactLat,
+    nextExactLng,
     new Date().toISOString(),
     req.user!.id,
   )

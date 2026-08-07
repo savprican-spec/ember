@@ -3,28 +3,32 @@
 Adults-only web app: TikTok-style vertical clip feed + Sniffies-style map for casual meetups.
 
 **Repo:** https://github.com/savprican-spec/ember  
-**Live site:** https://savprican-spec.github.io/ember/
+**Static demo:** https://savprican-spec.github.io/ember/  
+**Launch guide:** see [LAUNCH.md](./LAUNCH.md)
 
 ## Features
 
 - **18+ age gate** before entry
-- **For You feed** — full-bleed vertical swipe clips with likes, captions, distance, and looking-for status
-- **Nearby map** — dark map with live-style pins, filters (Right now / Hosting / Car / Tonight), and nearby sheet
-- **Inbox** — direct threads for arranging meetups
-- **Profile** — map visibility, looking-for status, clip grid
+- **For You feed** — full-bleed vertical swipe clips
+- **Nearby map** — dark map with meetup-style pins
+- **Inbox** — direct threads
+- **Auth + uploads** — register, public/private albums
+- **Admin hub** (`/#/admin`) — new users, profiles, all uploads (including private), activity
 
-Demo media is atmospheric stock footage (not real NSFW). Swap `videoUrl` values in `src/data/videos.ts` for your hosted clips.
-
-## Run locally
+## Run full stack (API + web)
 
 ```bash
 npm install
 npm run dev
 ```
 
+- App: http://127.0.0.1:5173/
+- Admin: http://127.0.0.1:5173/#/admin  
+  Default: `admin@ember.app` / `ember-admin-change-me`
+
 ```bash
 npm run build
-npm run preview
+npm start
 ```
 
-Built with Vite, React, TypeScript, React Router, Leaflet.
+Demo media in the feed is atmospheric stock footage. User uploads are stored by the API.

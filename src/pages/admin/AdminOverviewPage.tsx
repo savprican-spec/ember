@@ -218,7 +218,7 @@ export function AdminOverviewPage() {
           <ul className="admin-list">
             {(data.recentReports || []).map((r) => (
               <li key={r.id}>
-                <Link to="/admin/reports?status=open">
+                <Link to={`/admin/reports?status=${encodeURIComponent(r.status || 'open')}&id=${encodeURIComponent(r.id)}`}>
                   <strong>{r.reason}</strong> · {r.status}
                   <span>
                     {r.targetType} · @{r.reporterHandle}

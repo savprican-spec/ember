@@ -312,6 +312,108 @@ adminRouter.get('/events', (req, res) => {
   })
 })
 
+function resolveReportTarget(targetType: string, targetId: string) {
+  if (targetType === 'user') {
+    const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(targetId) as Record<string, unknown> | undefined
+    if (!row) return { missing: true as const, type: 'user' as const }
+    return {
+      missing: false as const,
+      type: 'user' as const,
+      user: mapUser(row),
+    }
+  }
+
+  if (targetType === 'upload') {
+    const row = db
+      .prepare(
+        `SELECT u.*, us.display_name, us.handle, us.email
+         FROM uploads u JOIN users us ON us.id = u.user_id
+         WHERE u.id = ?`,
+      )
+      .get(targetId) as Record<string, unknown> | undefined
+    if (!row) return { missing: true as const, type: 'upload' as const }
+    return {
+      missing: false as const,
+      type: 'upload' as const,
+      upload: mapUpload(row),
+    }
+  }
+
+  if (targetType === 'message') {
+    const row = db
+      .prepare(
+        `SELECT m.*, us.display_name AS sender_name, us.handle AS sender_handle, us.email AS sender_email
+         FROM messages m JOIN users us ON us.id = m.sender_id
+         WHERE m.id = ?`,
+      )
+      .get(targetId) as Record<string, unknown> | undefined
+    if (!row) return { missing: true as const, type: 'message' as const }
+    return {
+      missing: false as const,
+      type: 'message' as const,
+      message: {
+        id: row.id,
+        conversationId: row.conversation_id,
+        body: row.body,
+        createdAt: row.created_at,
+        senderId: row.sender_id,
+        senderName: row.sender_name,
+        senderHandle: row.sender_handle,
+        senderEmail: row.sender_email,
+      },
+    }
+  }
+
+  if (targetType === 'conversation') {
+    const convo = db.prepare(`SELECT id, created_at, updated_at FROM conversations WHERE id = ?`).get(targetId) as
+      | Record<string, unknown>
+      | undefined
+    if (!convo) return { missing: true as const, type: 'conversation' as const }
+    const members = db
+      .prepare(
+        `SELECT us.id, us.display_name, us.handle, us.email
+         FROM conversation_members cm JOIN users us ON us.id = cm.user_id
+         WHERE cm.conversation_id = ?`,
+      )
+      .all(targetId) as Record<string, unknown>[]
+    const messages = db
+      .prepare(
+        `SELECT m.id, m.body, m.created_at, m.sender_id, us.display_name AS sender_name, us.handle AS sender_handle
+         FROM messages m JOIN users us ON us.id = m.sender_id
+         WHERE m.conversation_id = ?
+         ORDER BY m.created_at DESC LIMIT 12`,
+      )
+      .all(targetId) as Record<string, unknown>[]
+    return {
+      missing: false as const,
+      type: 'conversation' as const,
+      conversation: {
+        id: convo.id,
+        createdAt: convo.created_at,
+        updatedAt: convo.updated_at,
+        members: members.map((m) => ({
+          id: m.id,
+          displayName: m.display_name,
+          handle: m.handle,
+          email: m.email,
+        })),
+        recentMessages: messages
+          .map((m) => ({
+            id: m.id,
+            body: m.body,
+            createdAt: m.created_at,
+            senderId: m.sender_id,
+            senderName: m.sender_name,
+            senderHandle: m.sender_handle,
+          }))
+          .reverse(),
+      },
+    }
+  }
+
+  return { missing: true as const, type: targetType }
+}
+
 adminRouter.get('/reports', (req, res) => {
   const status = String(req.query.status ?? 'open')
   let rows: Record<string, unknown>[]
@@ -343,6 +445,7 @@ adminRouter.get('/reports', (req, res) => {
       reporterEmail: r.reporter_email,
       targetType: r.target_type,
       targetId: r.target_id,
+      target: resolveReportTarget(String(r.target_type), String(r.target_id)),
       reason: r.reason,
       details: r.details,
       status: r.status,

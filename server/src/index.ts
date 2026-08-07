@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import jwt from 'jsonwebtoken'
 import { isPremium, seedAdmin, UPLOAD_DIR } from './db.js'
+import { privacySafeLocation } from './geoPrivacy.js'
 import { authRouter, publicUser } from './routes/auth.js'
 import { uploadsRouter } from './routes/uploads.js'
 import { eventsRouter } from './routes/events.js'
@@ -90,10 +91,16 @@ app.patch('/api/me', requireAuth, (req, res) => {
     })
   }
 
-  const nextLat =
-    lat === null ? null : typeof lat === 'number' && Number.isFinite(lat) ? lat : row.lat
-  const nextLng =
-    lng === null ? null : typeof lng === 'number' && Number.isFinite(lng) ? lng : row.lng
+  let nextLat: number | null =
+    lat === null ? null : typeof lat === 'number' && Number.isFinite(lat) ? lat : (row.lat as number | null)
+  let nextLng: number | null =
+    lng === null ? null : typeof lng === 'number' && Number.isFinite(lng) ? lng : (row.lng as number | null)
+  // Never store exact GPS from clients
+  if (typeof lat === 'number' && Number.isFinite(lat) && typeof lng === 'number' && Number.isFinite(lng)) {
+    const safe = privacySafeLocation(lat, lng, req.user!.id)
+    nextLat = safe.lat
+    nextLng = safe.lng
+  }
 
   const nextLooking = lookingFor === undefined ? row.looking_for : String(lookingFor).slice(0, 40)
   const nextNote =

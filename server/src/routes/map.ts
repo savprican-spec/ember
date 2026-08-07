@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
 import { db, isPremium } from '../db.js'
+import { fuzzyCoords, privacySafeLocation } from '../geoPrivacy.js'
 import { optionalAuth, requireAuth, requirePremium } from '../auth.js'
 import { publicUser } from './auth.js'
 
@@ -8,7 +9,7 @@ export const mapRouter = Router()
 
 const LOOKING = new Set(['Right now', 'Hosting', 'Cruising', 'Car', 'Hotel', 'Tonight'])
 
-/** Anyone can browse. Only premium + map_visible pins appear. */
+/** Anyone can browse. Only premium + map_visible pins appear. Coords are always approximate. */
 mapRouter.get('/nearby', optionalAuth, (_req, res) => {
   const rows = db
     .prepare(
@@ -26,8 +27,10 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
     .map((r, i) => {
       const baseLat = 37.7849
       const baseLng = -122.4094
-      const lat = typeof r.lat === 'number' ? r.lat : baseLat + ((i % 7) - 3) * 0.008
-      const lng = typeof r.lng === 'number' ? r.lng : baseLng + ((i % 5) - 2) * 0.01
+      const rawLat = typeof r.lat === 'number' ? r.lat : baseLat + ((i % 7) - 3) * 0.008
+      const rawLng = typeof r.lng === 'number' ? r.lng : baseLng + ((i % 5) - 2) * 0.01
+      // Always re-fuzz on read — never return stored coords as-is
+      const approx = fuzzyCoords(rawLat, rawLng, String(r.id))
       const postedAt = r.looking_posted_at ? new Date(String(r.looking_posted_at)).getTime() : 0
       const lastSeen = r.last_seen_at ? new Date(String(r.last_seen_at)).getTime() : 0
       const fresh = postedAt > 0 && Date.now() - postedAt < 1000 * 60 * 90
@@ -46,10 +49,12 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
         lookingPostedAt: r.looking_posted_at || null,
         rightNow: fresh || String(r.looking_for) === 'Right now',
         avatar: r.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop',
-        lat,
-        lng,
+        lat: approx.lat,
+        lng: approx.lng,
+        approximate: true,
+        accuracyMeters: approx.accuracyMeters,
         status: online ? 'online' : fresh ? 'just-now' : 'away',
-        distance: 'nearby',
+        distance: 'nearby area',
         tags: [String(r.looking_for || 'Right now').toLowerCase()],
         premium: true,
       }
@@ -57,6 +62,8 @@ mapRouter.get('/nearby', optionalAuth, (_req, res) => {
 
   res.json({
     people,
+    locationPrivacy:
+      'Pins are approximate (±250–650m). Exact GPS is never shown on the map for safety.',
     note: 'Casual encounters only — Premium members posting what they want right now. Browse free; go live with Premium.',
   })
 })
@@ -69,15 +76,32 @@ mapRouter.post('/pulse', requirePremium, (req, res) => {
   const mapVisible = req.body?.mapVisible === false ? 0 : 1
   const now = new Date().toISOString()
 
-  db.prepare(
-    `UPDATE users SET
-      looking_for = ?,
-      looking_note = ?,
-      looking_posted_at = ?,
-      map_visible = ?,
-      last_seen_at = ?
-     WHERE id = ?`,
-  ).run(lookingFor, lookingNote, now, mapVisible, now, req.user!.id)
+  const lat = Number(req.body?.lat)
+  const lng = Number(req.body?.lng)
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const safe = privacySafeLocation(lat, lng, req.user!.id)
+    db.prepare(
+      `UPDATE users SET
+        looking_for = ?,
+        looking_note = ?,
+        looking_posted_at = ?,
+        map_visible = ?,
+        lat = ?,
+        lng = ?,
+        last_seen_at = ?
+       WHERE id = ?`,
+    ).run(lookingFor, lookingNote, now, mapVisible, safe.lat, safe.lng, now, req.user!.id)
+  } else {
+    db.prepare(
+      `UPDATE users SET
+        looking_for = ?,
+        looking_note = ?,
+        looking_posted_at = ?,
+        map_visible = ?,
+        last_seen_at = ?
+       WHERE id = ?`,
+    ).run(lookingFor, lookingNote, now, mapVisible, now, req.user!.id)
+  }
 
   db.prepare(
     `INSERT INTO events (id, user_id, session_id, event_type, target_type, target_id, meta_json, created_at)
@@ -87,7 +111,7 @@ mapRouter.post('/pulse', requirePremium, (req, res) => {
     req.user!.id,
     req.headers['x-session-id'] ?? null,
     req.user!.id,
-    JSON.stringify({ lookingFor, mapVisible: Boolean(mapVisible) }),
+    JSON.stringify({ lookingFor, mapVisible: Boolean(mapVisible), approximate: true }),
     now,
   )
 
@@ -101,11 +125,20 @@ mapRouter.post('/location', requireAuth, (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'lat and lng required' })
   }
+  // Never persist raw GPS — fuzz before write
+  const safe = privacySafeLocation(lat, lng, req.user!.id)
   db.prepare(`UPDATE users SET lat = ?, lng = ?, last_seen_at = ? WHERE id = ?`).run(
-    lat,
-    lng,
+    safe.lat,
+    safe.lng,
     new Date().toISOString(),
     req.user!.id,
   )
-  res.json({ ok: true })
+  res.json({
+    ok: true,
+    approximate: true,
+    accuracyMeters: safe.accuracyMeters,
+    // Return only the privacy-safe coords the map will use
+    lat: safe.lat,
+    lng: safe.lng,
+  })
 })

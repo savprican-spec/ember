@@ -176,6 +176,38 @@ async function main() {
       : fail('Nearby shows looking-for note', JSON.stringify(mine || data.people?.slice(0, 1)))
   }
 
+  // Location privacy: never return exact submitted GPS
+  {
+    const exactLat = 37.774929
+    const exactLng = -122.419418
+    const { res, data } = await api('/api/map/location', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: exactLat, lng: exactLng }),
+    })
+    const storedDiffers =
+      res.ok &&
+      data.approximate === true &&
+      (Math.abs(data.lat - exactLat) > 0.001 || Math.abs(data.lng - exactLng) > 0.001)
+    storedDiffers
+      ? pass('Location stored approximate, not exact GPS')
+      : fail('Location stored approximate, not exact GPS', JSON.stringify(data))
+  }
+
+  {
+    const exactLat = 37.774929
+    const exactLng = -122.419418
+    const { data } = await api('/api/map/nearby')
+    const mine = (data.people || []).find((p) => p.id === userId)
+    const approx =
+      mine &&
+      mine.approximate === true &&
+      (Math.abs(mine.lat - exactLat) > 0.001 || Math.abs(mine.lng - exactLng) > 0.001)
+    approx
+      ? pass('Map pin never exact GPS', `Δlat=${Math.abs(mine.lat - exactLat).toFixed(4)}`)
+      : fail('Map pin never exact GPS', JSON.stringify(mine))
+  }
+
   // Follow another user
   let peerId = ''
   {

@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js'
 import { uploadsRouter } from './routes/uploads.js'
 import { eventsRouter } from './routes/events.js'
 import { adminRouter } from './routes/admin.js'
+import { verifyRouter, handleStripeWebhook } from './routes/verify.js'
 import { requireAuth, requireAdmin, type AuthUser } from './auth.js'
 import { db } from './db.js'
 
@@ -19,6 +20,18 @@ seedAdmin()
 
 const app = express()
 app.use(cors({ origin: true, credentials: true }))
+
+// Stripe webhook needs raw body
+app.post('/api/verify/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  try {
+    await handleStripeWebhook(req.body as Buffer, req.headers['stripe-signature'] as string | undefined)
+    res.json({ received: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Webhook error'
+    res.status(400).send(`Webhook Error: ${message}`)
+  }
+})
+
 app.use(express.json({ limit: '2mb' }))
 
 app.get('/api/health', (_req, res) => {
@@ -26,6 +39,7 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.use('/api/auth', authRouter)
+app.use('/api/verify', verifyRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/events', eventsRouter)
 app.use('/api/admin', adminRouter)
@@ -88,6 +102,9 @@ app.patch('/api/me', requireAuth, (req, res) => {
       lookingFor: updated.looking_for,
       mapVisible: Boolean(updated.map_visible),
       role: updated.role,
+      ageVerified: Boolean(updated.age_verified) || updated.role === 'admin',
+      ageVerifiedAt: updated.age_verified_at,
+      birthdate: updated.birthdate,
       createdAt: updated.created_at,
       lastSeenAt: updated.last_seen_at,
     },

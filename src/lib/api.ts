@@ -9,6 +9,9 @@ export type EmberUser = {
   lookingFor: string
   mapVisible: boolean
   role: 'user' | 'admin'
+  ageVerified: boolean
+  ageVerifiedAt?: string | null
+  birthdate?: string | null
   createdAt: string
   lastSeenAt: string
 }
@@ -75,4 +78,11 @@ export function track(eventType: string, targetType?: string, targetId?: string,
       sessionId: getSessionId(),
     }),
   }).catch(() => undefined)
+}
+
+export function formatMoney(cents: number, currency = 'usd') {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(cents / 100)
 }

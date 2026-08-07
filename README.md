@@ -12,8 +12,9 @@ Adults-only web app: TikTok-style vertical clip feed + Sniffies-style map for ca
 - **For You feed** — full-bleed vertical swipe clips
 - **Nearby map** — dark map with meetup-style pins
 - **Inbox** — direct threads
-- **Auth + uploads** — register, public/private albums
-- **Admin hub** (`/#/admin`) — new users, profiles, all uploads (including private), activity
+- **Auth + paid age verification** — register, then one-time pay + DOB to unlock the app
+- **Uploads** — public/private albums (verified members only)
+- **Admin hub** (`/#/admin`) — users, verified status, revenue, all uploads (including private), activity
 
 ## Run full stack (API + web)
 

@@ -12,6 +12,9 @@ type Detail = {
     bio: string
     lookingFor: string
     mapVisible: boolean
+    ageVerified?: boolean
+    ageVerifiedAt?: string
+    birthdate?: string
     createdAt: string
     lastSeenAt: string
   }
@@ -25,6 +28,16 @@ type Detail = {
     createdAt: string
   }>
   events: Array<{ id: string; eventType: string; createdAt: string; meta: Record<string, unknown> }>
+  verifications?: Array<{
+    id: string
+    status: string
+    amountCents: number
+    currency: string
+    provider: string
+    birthdate?: string
+    createdAt: string
+    completedAt?: string
+  }>
   note: string
 }
 
@@ -60,12 +73,27 @@ export function AdminUserDetailPage() {
       <div className="admin-profile-meta">
         <div><span>Email</span><strong>{user.email}</strong></div>
         <div><span>Age</span><strong>{user.age}</strong></div>
+        <div><span>Birthdate</span><strong>{user.birthdate || '—'}</strong></div>
+        <div><span>Age verified</span><strong>{user.ageVerified ? 'Yes' : 'No'}</strong></div>
+        <div><span>Verified at</span><strong>{user.ageVerifiedAt ? new Date(user.ageVerifiedAt).toLocaleString() : '—'}</strong></div>
         <div><span>Looking</span><strong>{user.lookingFor}</strong></div>
         <div><span>Map</span><strong>{user.mapVisible ? 'Visible' : 'Hidden'}</strong></div>
         <div><span>Joined</span><strong>{new Date(user.createdAt).toLocaleString()}</strong></div>
         <div><span>Last seen</span><strong>{new Date(user.lastSeenAt).toLocaleString()}</strong></div>
       </div>
       {user.bio && <p className="admin-bio">{user.bio}</p>}
+
+      <h3>Verification payments</h3>
+      <ul className="admin-list">
+        {(data.verifications || []).map((v) => (
+          <li key={v.id}>
+            <strong>{v.status}</strong> · {(v.amountCents / 100).toFixed(2)} {v.currency} · {v.provider}
+            <span>DOB {v.birthdate || '—'}</span>
+            <time>{new Date(v.completedAt || v.createdAt).toLocaleString()}</time>
+          </li>
+        ))}
+        {(data.verifications || []).length === 0 && <li className="muted">No verification attempts.</li>}
+      </ul>
 
       <h3>All uploads ({uploads.length})</h3>
       <div className="admin-media-grid">

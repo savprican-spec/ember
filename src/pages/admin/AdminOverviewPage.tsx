@@ -3,8 +3,15 @@ import { Link } from 'react-router-dom'
 import { api, mediaUrl } from '../../lib/api'
 
 type Overview = {
-  stats: { users: number; uploads: number; privateUploads: number; events24h: number }
-  recentUsers: Array<{ id: string; displayName: string; handle: string; email: string; createdAt: string }>
+  stats: {
+    users: number
+    verifiedUsers?: number
+    uploads: number
+    privateUploads: number
+    events24h: number
+    verifyRevenueCents?: number
+  }
+  recentUsers: Array<{ id: string; displayName: string; handle: string; email: string; createdAt: string; ageVerified?: boolean }>
   recentUploads: Array<{
     id: string
     title: string
@@ -40,9 +47,18 @@ export function AdminOverviewPage() {
 
       <div className="admin-stats">
         <div><strong>{data.stats.users}</strong><span>Users</span></div>
+        <div><strong>{data.stats.verifiedUsers ?? 0}</strong><span>Verified</span></div>
         <div><strong>{data.stats.uploads}</strong><span>Uploads</span></div>
         <div><strong>{data.stats.privateUploads}</strong><span>Private</span></div>
         <div><strong>{data.stats.events24h}</strong><span>Events 24h</span></div>
+        <div>
+          <strong>
+            {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(
+              (data.stats.verifyRevenueCents ?? 0) / 100,
+            )}
+          </strong>
+          <span>Verify revenue</span>
+        </div>
       </div>
 
       <div className="admin-grid">

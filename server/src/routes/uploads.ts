@@ -3,7 +3,7 @@ import multer from 'multer'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { db, UPLOAD_DIR } from '../db.js'
-import { requireAuth } from '../auth.js'
+import { requireAuth, requireVerified } from '../auth.js'
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -24,7 +24,7 @@ const upload = multer({
 
 export const uploadsRouter = Router()
 
-uploadsRouter.post('/', requireAuth, (req, res) => {
+uploadsRouter.post('/', requireVerified, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message || 'Upload failed' })
     if (!req.file) return res.status(400).json({ error: 'file required' })

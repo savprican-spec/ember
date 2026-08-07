@@ -41,7 +41,7 @@ export function AgeGate({ onVerified }: AgeGateProps) {
         <p className="brand brand--hero">EMBER</p>
         <h1 className="age-gate__title">Adults only.</h1>
         <p className="age-gate__copy">
-          Explicit clips and casual meetups. You must be 18 or older to enter.
+          Explicit clips and casual meetups. You must be 18 or older to enter. After creating an account you’ll also complete a paid age verification — a second lock so minors stay out.
         </p>
         <div className="age-gate__actions">
           <button type="button" className="btn btn--primary" onClick={verify}>

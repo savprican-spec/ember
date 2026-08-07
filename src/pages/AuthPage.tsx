@@ -23,7 +23,7 @@ export function AuthPage() {
     try {
       if (mode === 'login') {
         const user = await login(form.email, form.password)
-        navigate(user.role === 'admin' ? '/admin' : '/profile')
+        navigate(user.role === 'admin' ? '/admin' : user.ageVerified ? '/profile' : '/verify')
       } else {
         await register({
           email: form.email,
@@ -32,7 +32,7 @@ export function AuthPage() {
           handle: form.handle,
           age: Number(form.age),
         })
-        navigate('/profile')
+        navigate('/verify')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')

@@ -5,10 +5,11 @@ GitHub Pages can only host the static demo. A public launch with registration, u
 ## What’s already built
 
 - User registration / login (18+)
-- Clip uploads with **public** or **private** visibility
-- Interaction events (page views, likes, logins, uploads)
+- **Pay-to-verify age** (Stripe Checkout + DOB) — second gate after the entry age wall
+- Clip uploads with **public** or **private** visibility (verified users only)
+- Interaction events (page views, likes, logins, uploads, verifications)
 - **Admin hub** at `/#/admin`
-  - New users
+  - New users + verified status + verify revenue
   - Profiles
   - All uploads including private albums
   - Activity feed
@@ -19,6 +20,19 @@ Default admin (change immediately in production):
 - Password: `ember-admin-change-me`
 
 Override with `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and set a strong `JWT_SECRET`.
+
+### Age verification fee
+
+Default **$6.99** one-time (`VERIFY_PRICE_CENTS=699`).
+
+Flow:
+
+1. Entry age gate (“I am 18+”)
+2. Create account (age must be ≥ 18)
+3. Pay verification + confirm date of birth
+4. Only then: feed, map, inbox, uploads
+
+Without `STRIPE_SECRET_KEY`, local **Test verify (dev only)** is available. For production, set Stripe keys + webhook to `/api/verify/webhook`.
 
 ## Run locally (full stack)
 

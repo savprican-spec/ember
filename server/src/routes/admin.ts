@@ -17,6 +17,9 @@ function mapUser(row: Record<string, unknown>) {
     lookingFor: row.looking_for,
     mapVisible: Boolean(row.map_visible),
     role: row.role,
+    ageVerified: Boolean(row.age_verified) || row.role === 'admin',
+    ageVerifiedAt: row.age_verified_at,
+    birthdate: row.birthdate,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   }
@@ -42,6 +45,9 @@ function mapUpload(row: Record<string, unknown>) {
 
 adminRouter.get('/overview', (_req, res) => {
   const users = (db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin'`).get() as { c: number }).c
+  const verifiedUsers = (
+    db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin' AND age_verified = 1`).get() as { c: number }
+  ).c
   const uploads = (db.prepare(`SELECT COUNT(*) AS c FROM uploads`).get() as { c: number }).c
   const privateUploads = (
     db.prepare(`SELECT COUNT(*) AS c FROM uploads WHERE visibility = 'private'`).get() as { c: number }
@@ -49,6 +55,11 @@ adminRouter.get('/overview', (_req, res) => {
   const events24h = (
     db
       .prepare(`SELECT COUNT(*) AS c FROM events WHERE created_at >= datetime('now', '-1 day')`)
+      .get() as { c: number }
+  ).c
+  const verifyRevenue = (
+    db
+      .prepare(`SELECT COALESCE(SUM(amount_cents), 0) AS c FROM verifications WHERE status = 'paid'`)
       .get() as { c: number }
   ).c
 
@@ -76,7 +87,7 @@ adminRouter.get('/overview', (_req, res) => {
     .all()
 
   res.json({
-    stats: { users, uploads, privateUploads, events24h },
+    stats: { users, verifiedUsers, uploads, privateUploads, events24h, verifyRevenueCents: verifyRevenue },
     recentUsers: recentUsers.map(mapUser),
     recentUploads: recentUploads.map(mapUpload),
     topEvents,
@@ -135,6 +146,10 @@ adminRouter.get('/users/:id', (req, res) => {
     .prepare(`SELECT * FROM events WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`)
     .all(row.id) as Record<string, unknown>[]
 
+  const verifications = db
+    .prepare(`SELECT * FROM verifications WHERE user_id = ? ORDER BY created_at DESC`)
+    .all(row.id) as Record<string, unknown>[]
+
   res.json({
     user: mapUser(row),
     uploads: uploads.map((u) => mapUpload({ ...u, display_name: row.display_name, handle: row.handle, email: row.email })),
@@ -146,7 +161,17 @@ adminRouter.get('/users/:id', (req, res) => {
       meta: JSON.parse(String(e.meta_json || '{}')),
       createdAt: e.created_at,
     })),
-    note: 'Admin view includes private album uploads.',
+    verifications: verifications.map((v) => ({
+      id: v.id,
+      status: v.status,
+      birthdate: v.birthdate,
+      amountCents: v.amount_cents,
+      currency: v.currency,
+      provider: v.provider,
+      createdAt: v.created_at,
+      completedAt: v.completed_at,
+    })),
+    note: 'Admin view includes private album uploads and age-verification payments.',
   })
 })
 

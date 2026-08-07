@@ -18,6 +18,9 @@ function publicUser(row: Record<string, unknown>) {
     lookingFor: row.looking_for,
     mapVisible: Boolean(row.map_visible),
     role: row.role,
+    ageVerified: Boolean(row.age_verified) || row.role === 'admin',
+    ageVerifiedAt: row.age_verified_at,
+    birthdate: row.birthdate,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   }

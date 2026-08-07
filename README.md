@@ -2,6 +2,9 @@
 
 Adults-only web app: TikTok-style vertical clip feed + Sniffies-style map for casual meetups.
 
+**Repo:** https://github.com/savprican-spec/ember  
+**Live site:** https://savprican-spec.github.io/ember/
+
 ## Features
 
 - **18+ age gate** before entry
@@ -12,7 +15,7 @@ Adults-only web app: TikTok-style vertical clip feed + Sniffies-style map for ca
 
 Demo media is atmospheric stock footage (not real NSFW). Swap `videoUrl` values in `src/data/videos.ts` for your hosted clips.
 
-## Run
+## Run locally
 
 ```bash
 npm install

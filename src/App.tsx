@@ -8,8 +8,8 @@ import { AuthPage } from './pages/AuthPage'
 import { FeedPage } from './pages/FeedPage'
 import { MapPage } from './pages/MapPage'
 import { MessagesPage } from './pages/MessagesPage'
+import { PremiumPage } from './pages/PremiumPage'
 import { ProfilePage } from './pages/ProfilePage'
-import { VerifyPage } from './pages/VerifyPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
@@ -19,15 +19,12 @@ import { AdminEventsPage } from './pages/admin/AdminEventsPage'
 import { AdminReportsPage } from './pages/admin/AdminReportsPage'
 import { AdminMessagesPage } from './pages/admin/AdminMessagesPage'
 
-function RequirePaidAge({ children }: { children: ReactNode }) {
+function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
   if (loading) return <div className="admin-loading">Loading…</div>
   if (!user) return <Navigate to="/auth" replace state={{ from: location.pathname }} />
-  if (!user.ageVerified && user.role !== 'admin') {
-    return <Navigate to="/verify" replace />
-  }
   return children
 }
 
@@ -35,12 +32,13 @@ function AppRoutes() {
   const location = useLocation()
   const { user } = useAuth()
   const isAdminRoute = location.pathname.startsWith('/admin')
-  const hideNav = isAdminRoute || location.pathname === '/verify' || location.pathname === '/auth'
+  const hideNav =
+    isAdminRoute || location.pathname === '/premium' || location.pathname === '/auth'
 
   useEffect(() => {
     track('page_view', 'route', location.pathname, {
       authed: Boolean(user),
-      ageVerified: Boolean(user?.ageVerified),
+      premium: Boolean(user?.premium),
     })
   }, [location.pathname, user])
 
@@ -49,7 +47,14 @@ function AppRoutes() {
       <main className={isAdminRoute ? 'admin-main' : 'app-main'}>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/verify" element={<VerifyPage />} />
+          <Route
+            path="/premium"
+            element={
+              <RequireAuth>
+                <PremiumPage />
+              </RequireAuth>
+            }
+          />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminOverviewPage />} />
             <Route path="users" element={<AdminUsersPage />} />
@@ -60,36 +65,22 @@ function AppRoutes() {
             <Route path="events" element={<AdminEventsPage />} />
           </Route>
 
-          <Route
-            path="/"
-            element={
-              <RequirePaidAge>
-                <FeedPage />
-              </RequirePaidAge>
-            }
-          />
-          <Route
-            path="/map"
-            element={
-              <RequirePaidAge>
-                <MapPage />
-              </RequirePaidAge>
-            }
-          />
+          <Route path="/" element={<FeedPage />} />
+          <Route path="/map" element={<MapPage />} />
           <Route
             path="/messages"
             element={
-              <RequirePaidAge>
+              <RequireAuth>
                 <MessagesPage />
-              </RequirePaidAge>
+              </RequireAuth>
             }
           />
           <Route
             path="/profile"
             element={
-              <RequirePaidAge>
+              <RequireAuth>
                 <ProfilePage />
-              </RequirePaidAge>
+              </RequireAuth>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

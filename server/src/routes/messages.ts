@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
 import { db } from '../db.js'
-import { requireVerified } from '../auth.js'
+import { requireAuth } from '../auth.js'
 
 export const messagesRouter = Router()
-messagesRouter.use(requireVerified)
+messagesRouter.use(requireAuth)
 
 function otherMember(conversationId: string, me: string) {
   return db

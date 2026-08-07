@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'node:crypto'
-import { db } from '../db.js'
+import { db, isPremium } from '../db.js'
 import { requireAuth, signToken } from '../auth.js'
 
 export const authRouter = Router()
 
-function publicUser(row: Record<string, unknown>) {
+export function publicUser(row: Record<string, unknown>) {
+  const premium = isPremium(row)
   return {
     id: row.id,
     email: row.email,
@@ -16,11 +17,10 @@ function publicUser(row: Record<string, unknown>) {
     bio: row.bio,
     avatarUrl: row.avatar_url,
     lookingFor: row.looking_for,
-    mapVisible: Boolean(row.map_visible),
+    mapVisible: Boolean(row.map_visible) && premium,
     role: row.role,
-    ageVerified: Boolean(row.age_verified) || row.role === 'admin',
-    ageVerifiedAt: row.age_verified_at,
-    birthdate: row.birthdate,
+    premium,
+    premiumUntil: row.premium_until,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   }
@@ -51,9 +51,9 @@ authRouter.post('/register', (req, res) => {
     db.prepare(
       `INSERT INTO users (
         id, email, password_hash, display_name, handle, age, bio, avatar_url,
-        looking_for, map_visible, role, created_at, last_seen_at
-      ) VALUES (?, ?, ?, ?, ?, ?, '', '', 'Tonight', 1, 'user', ?, ?)`,
-    ).run(id, String(email).toLowerCase().trim(), hash, String(displayName).trim(), cleanHandle, Number(age), now, now)
+        looking_for, map_visible, role, created_at, last_seen_at, age_verified, age_verified_at, premium
+      ) VALUES (?, ?, ?, ?, ?, ?, '', '', 'Tonight', 0, 'user', ?, ?, 1, ?, 0)`,
+    ).run(id, String(email).toLowerCase().trim(), hash, String(displayName).trim(), cleanHandle, Number(age), now, now, now)
   } catch (err) {
     const message = err instanceof Error ? err.message : ''
     if (message.includes('UNIQUE')) {

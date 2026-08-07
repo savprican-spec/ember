@@ -4,14 +4,16 @@ GitHub Pages can only host the static demo. A public launch with registration, u
 
 ## What’s already built
 
-- User registration / login (18+)
-- **Pay-to-verify age** (Stripe Checkout + DOB) — second gate after the entry age wall
-- Clip uploads with **public** or **private** visibility (verified users only)
-- Interaction events (page views, likes, logins, uploads, verifications)
+- Entry age gate (“I am 18+”) + registration (age ≥ 18)
+- **Free basic profile**: messaging, XXX feed uploads, follow/add people, browse the map
+- **Premium map meetups** ($9.99/mo Stripe subscription) — required only to **appear** on the map for casual encounters
+- Clip uploads with **public** or **private** visibility (any signed-in basic user)
+- Interaction events (page views, likes, logins, uploads, premium, follows)
 - **Admin hub** at `/#/admin`
-  - New users + verified status + verify revenue
-  - Profiles
+  - Users + Premium / on-map status + estimated Premium MRR
+  - Profiles, follows
   - All uploads including private albums
+  - Inbox messages + reports
   - Activity feed
 
 Default admin (change immediately in production):
@@ -21,18 +23,18 @@ Default admin (change immediately in production):
 
 Override with `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and set a strong `JWT_SECRET`.
 
-### Age verification fee
+### Monetization
 
-Default **$6.99** one-time (`VERIFY_PRICE_CENTS=699`).
+Default **$9.99/month** (`PREMIUM_PRICE_CENTS=999`).
 
 Flow:
 
 1. Entry age gate (“I am 18+”)
-2. Create account (age must be ≥ 18)
-3. Pay verification + confirm date of birth
-4. Only then: feed, map, inbox, uploads
+2. Browse the free XXX feed (and map) immediately
+3. Create a free basic account to upload, message, and follow
+4. Optional: subscribe to Premium to appear on the meetup map
 
-Without `STRIPE_SECRET_KEY`, local **Test verify (dev only)** is available. For production, set Stripe keys + webhook to `/api/verify/webhook`.
+Without `STRIPE_SECRET_KEY`, local **Test Premium (dev)** is available. For production, set Stripe keys + webhook to `/api/premium/webhook`.
 
 ## Run locally (full stack)
 

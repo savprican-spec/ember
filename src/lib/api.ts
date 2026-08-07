@@ -9,12 +9,13 @@ export type EmberUser = {
   lookingFor: string
   mapVisible: boolean
   role: 'user' | 'admin'
-  ageVerified: boolean
-  ageVerifiedAt?: string | null
-  birthdate?: string | null
+  premium: boolean
+  premiumUntil?: string | null
   createdAt: string
   lastSeenAt: string
 }
+
+export type ApiError = Error & { status?: number; code?: string }
 
 const TOKEN_KEY = 'ember-token'
 const SESSION_KEY = 'ember-session-id'
@@ -53,7 +54,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const res = await fetch(`${getApiBase()}${path}`, { ...options, headers })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Request failed (${res.status})`)
+    const err = new Error((data as { error?: string }).error || `Request failed (${res.status})`) as ApiError
+    err.status = res.status
+    err.code = (data as { code?: string }).code
+    throw err
   }
   return data as T
 }

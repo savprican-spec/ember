@@ -1,11 +1,12 @@
 import { Router } from 'express'
-import { db } from '../db.js'
+import { db, isPremium, PREMIUM_PRICE_CENTS } from '../db.js'
 import { requireAdmin } from '../auth.js'
 
 export const adminRouter = Router()
 adminRouter.use(requireAdmin)
 
 function mapUser(row: Record<string, unknown>) {
+  const premium = isPremium(row)
   return {
     id: row.id,
     email: row.email,
@@ -15,10 +16,10 @@ function mapUser(row: Record<string, unknown>) {
     bio: row.bio,
     avatarUrl: row.avatar_url,
     lookingFor: row.looking_for,
-    mapVisible: Boolean(row.map_visible),
+    mapVisible: Boolean(row.map_visible) && premium,
     role: row.role,
-    ageVerified: Boolean(row.age_verified) || row.role === 'admin',
-    ageVerifiedAt: row.age_verified_at,
+    premium,
+    premiumUntil: row.premium_until,
     birthdate: row.birthdate,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
@@ -45,8 +46,13 @@ function mapUpload(row: Record<string, unknown>) {
 
 adminRouter.get('/overview', (_req, res) => {
   const users = (db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin'`).get() as { c: number }).c
-  const verifiedUsers = (
-    db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin' AND age_verified = 1`).get() as { c: number }
+  const premiumUsers = (
+    db.prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin' AND premium = 1`).get() as { c: number }
+  ).c
+  const mapVisibleUsers = (
+    db
+      .prepare(`SELECT COUNT(*) AS c FROM users WHERE role != 'admin' AND premium = 1 AND map_visible = 1`)
+      .get() as { c: number }
   ).c
   const uploads = (db.prepare(`SELECT COUNT(*) AS c FROM uploads`).get() as { c: number }).c
   const privateUploads = (
@@ -57,14 +63,10 @@ adminRouter.get('/overview', (_req, res) => {
       .prepare(`SELECT COUNT(*) AS c FROM events WHERE created_at >= datetime('now', '-1 day')`)
       .get() as { c: number }
   ).c
-  const verifyRevenue = (
-    db
-      .prepare(`SELECT COALESCE(SUM(amount_cents), 0) AS c FROM verifications WHERE status = 'paid'`)
-      .get() as { c: number }
-  ).c
   const openReports = (db.prepare(`SELECT COUNT(*) AS c FROM reports WHERE status = 'open'`).get() as { c: number }).c
   const messages = (db.prepare(`SELECT COUNT(*) AS c FROM messages`).get() as { c: number }).c
   const conversations = (db.prepare(`SELECT COUNT(*) AS c FROM conversations`).get() as { c: number }).c
+  const follows = (db.prepare(`SELECT COUNT(*) AS c FROM follows`).get() as { c: number }).c
 
   const recentUsers = db
     .prepare(`SELECT * FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 8`)
@@ -100,14 +102,16 @@ adminRouter.get('/overview', (_req, res) => {
   res.json({
     stats: {
       users,
-      verifiedUsers,
+      premiumUsers,
+      mapVisibleUsers,
       uploads,
       privateUploads,
       events24h,
-      verifyRevenueCents: verifyRevenue,
+      premiumMrrCents: premiumUsers * PREMIUM_PRICE_CENTS,
       openReports,
       messages,
       conversations,
+      follows,
     },
     recentUsers: recentUsers.map(mapUser),
     recentUploads: recentUploads.map(mapUpload),
@@ -122,7 +126,7 @@ adminRouter.get('/overview', (_req, res) => {
       createdAt: r.created_at,
     })),
     topEvents,
-    note: 'Admin hub sees everything: private uploads, inbox messages, and reports.',
+    note: 'Admin hub sees everything: private uploads, inbox messages, and reports. Feed is free; map appearance is Premium.',
   })
 })
 
@@ -236,7 +240,13 @@ adminRouter.get('/users/:id', (req, res) => {
         reporterHandle: (r as Record<string, unknown>).reporter_handle,
         createdAt: (r as Record<string, unknown>).created_at,
       })),
-    note: 'Admin view includes private albums, inbox threads, reports, and verification payments.',
+    followingCount: (
+      db.prepare(`SELECT COUNT(*) AS c FROM follows WHERE follower_id = ?`).get(row.id) as { c: number }
+    ).c,
+    followerCount: (
+      db.prepare(`SELECT COUNT(*) AS c FROM follows WHERE following_id = ?`).get(row.id) as { c: number }
+    ).c,
+    note: 'Admin view includes private albums, inbox threads, reports, follows, and Premium status.',
   })
 })
 

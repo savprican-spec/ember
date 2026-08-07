@@ -1,5 +1,6 @@
 export type VideoClip = {
   id: string
+  userId?: string
   username: string
   handle: string
   caption: string

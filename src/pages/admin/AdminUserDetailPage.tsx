@@ -12,12 +12,14 @@ type Detail = {
     bio: string
     lookingFor: string
     mapVisible: boolean
-    ageVerified?: boolean
-    ageVerifiedAt?: string
+    premium?: boolean
+    premiumUntil?: string | null
     birthdate?: string
     createdAt: string
     lastSeenAt: string
   }
+  followingCount?: number
+  followerCount?: number
   uploads: Array<{
     id: string
     title: string
@@ -83,16 +85,18 @@ export function AdminUserDetailPage() {
         <div><span>Email</span><strong>{user.email}</strong></div>
         <div><span>Age</span><strong>{user.age}</strong></div>
         <div><span>Birthdate</span><strong>{user.birthdate || '—'}</strong></div>
-        <div><span>Age verified</span><strong>{user.ageVerified ? 'Yes' : 'No'}</strong></div>
-        <div><span>Verified at</span><strong>{user.ageVerifiedAt ? new Date(user.ageVerifiedAt).toLocaleString() : '—'}</strong></div>
+        <div><span>Plan</span><strong>{user.premium ? 'Premium' : 'Basic'}</strong></div>
+        <div><span>Premium until</span><strong>{user.premiumUntil ? new Date(user.premiumUntil).toLocaleString() : '—'}</strong></div>
         <div><span>Looking</span><strong>{user.lookingFor}</strong></div>
         <div><span>Map</span><strong>{user.mapVisible ? 'Visible' : 'Hidden'}</strong></div>
+        <div><span>Following</span><strong>{data.followingCount ?? 0}</strong></div>
+        <div><span>Followers</span><strong>{data.followerCount ?? 0}</strong></div>
         <div><span>Joined</span><strong>{new Date(user.createdAt).toLocaleString()}</strong></div>
         <div><span>Last seen</span><strong>{new Date(user.lastSeenAt).toLocaleString()}</strong></div>
       </div>
       {user.bio && <p className="admin-bio">{user.bio}</p>}
 
-      <h3>Verification payments</h3>
+      <h3>Legacy verification records</h3>
       <ul className="admin-list">
         {(data.verifications || []).map((v) => (
           <li key={v.id}>
@@ -101,7 +105,7 @@ export function AdminUserDetailPage() {
             <time>{new Date(v.completedAt || v.createdAt).toLocaleString()}</time>
           </li>
         ))}
-        {(data.verifications || []).length === 0 && <li className="muted">No verification attempts.</li>}
+        {(data.verifications || []).length === 0 && <li className="muted">No legacy verification rows.</li>}
       </ul>
 
       <h3>Inbox threads ({(data.conversations || []).length})</h3>

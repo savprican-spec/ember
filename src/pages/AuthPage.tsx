@@ -23,7 +23,7 @@ export function AuthPage() {
     try {
       if (mode === 'login') {
         const user = await login(form.email, form.password)
-        navigate(user.role === 'admin' ? '/admin' : user.ageVerified ? '/profile' : '/verify')
+        navigate(user.role === 'admin' ? '/admin' : '/profile')
       } else {
         await register({
           email: form.email,
@@ -32,7 +32,7 @@ export function AuthPage() {
           handle: form.handle,
           age: Number(form.age),
         })
-        navigate('/verify')
+        navigate('/profile')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -45,7 +45,7 @@ export function AuthPage() {
     <div className="auth-page">
       <p className="brand brand--sm">EMBER</p>
       <h1>{mode === 'login' ? 'Welcome back' : 'Create your heat profile'}</h1>
-      <p className="page-header__sub">18+ only. Your clips and meetups stay on EMBER.</p>
+      <p className="page-header__sub">18+ only. Free basic: upload, message, follow. Premium unlocks map meetups.</p>
 
       <div className="auth-tabs" role="tablist">
         <button

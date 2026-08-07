@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import L from 'leaflet'
 import { lookingFilters, nearbyPeople, type NearbyPerson } from '../data/people'
-import { MessageCircle, Navigation } from 'lucide-react'
+import { MessageCircle, Navigation, UserPlus } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { api, track } from '../lib/api'
 
 function avatarIcon(url: string, online: boolean) {
   return L.divIcon({
@@ -14,16 +17,63 @@ function avatarIcon(url: string, online: boolean) {
   })
 }
 
+type MapPerson = NearbyPerson & { premium?: boolean; isLive?: boolean }
+
 export function MapPage() {
+  const { user } = useAuth()
   const [filter, setFilter] = useState<(typeof lookingFilters)[number]>('All')
-  const [selected, setSelected] = useState<NearbyPerson | null>(nearbyPeople[0])
+  const [livePeople, setLivePeople] = useState<MapPerson[]>([])
+  const [selected, setSelected] = useState<MapPerson | null>(null)
+  const [followBusy, setFollowBusy] = useState<string | null>(null)
+
+  useEffect(() => {
+    api<{ people: Array<Record<string, unknown>> }>('/api/map/nearby')
+      .then((d) => {
+        const mapped: MapPerson[] = (d.people || []).map((p) => ({
+          id: String(p.id),
+          name: String(p.name),
+          age: Number(p.age) || 21,
+          looking: String(p.looking || 'Tonight'),
+          note: String(p.note || ''),
+          avatar: String(p.avatar),
+          lat: Number(p.lat),
+          lng: Number(p.lng),
+          status: (p.status === 'online' ? 'online' : 'away') as NearbyPerson['status'],
+          distance: String(p.distance || 'nearby'),
+          tags: Array.isArray(p.tags) ? (p.tags as string[]) : [],
+          premium: Boolean(p.premium),
+          isLive: true,
+        }))
+        setLivePeople(mapped)
+        if (mapped[0]) setSelected(mapped[0])
+      })
+      .catch(() => {
+        setLivePeople([])
+        setSelected(nearbyPeople[0])
+      })
+    track('map_view')
+  }, [])
 
   const people = useMemo(() => {
-    if (filter === 'All') return nearbyPeople
-    return nearbyPeople.filter((p) => p.looking === filter)
-  }, [filter])
+    const source = livePeople.length > 0 ? livePeople : nearbyPeople.map((p) => ({ ...p, isLive: false }))
+    if (filter === 'All') return source
+    return source.filter((p) => p.looking === filter)
+  }, [filter, livePeople])
 
   const center: [number, number] = [37.7849, -122.4094]
+
+  async function followPerson(id: string) {
+    if (!user) return
+    setFollowBusy(id)
+    try {
+      await api(`/api/follows/${id}`, { method: 'POST' })
+      track('follow', 'user', id)
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Follow failed')
+    } finally {
+      setFollowBusy(null)
+    }
+  }
 
   return (
     <div className="map-page">
@@ -32,10 +82,16 @@ export function MapPage() {
           <p className="brand brand--sm">EMBER</p>
           <h1>Nearby heat</h1>
         </div>
-        <button type="button" className="ghost-chip" aria-label="Recenter">
-          <Navigation size={16} />
-          SF
-        </button>
+        {user?.premium ? (
+          <Link to="/profile" className="ghost-chip">
+            <Navigation size={16} />
+            {user.mapVisible ? 'Visible' : 'Hidden'}
+          </Link>
+        ) : (
+          <Link to={user ? '/premium' : '/auth'} className="ghost-chip">
+            Appear — $9.99/mo
+          </Link>
+        )}
       </header>
 
       <div className="filter-row" role="tablist" aria-label="Looking for">
@@ -52,6 +108,13 @@ export function MapPage() {
           </button>
         ))}
       </div>
+
+      {!user?.premium && (
+        <p className="form-hint" style={{ margin: '0 1rem 0.5rem' }}>
+          Browse free. Pins are Premium members who chose to appear. Want to show up for meetups?{' '}
+          <Link to={user ? '/premium' : '/auth'}>Go Premium</Link>
+        </p>
+      )}
 
       <div className="map-shell">
         <MapContainer center={center} zoom={13} className="map-canvas" zoomControl={false}>
@@ -83,7 +146,10 @@ export function MapPage() {
 
       <div className="nearby-sheet">
         <div className="nearby-sheet__handle" aria-hidden />
-        <p className="nearby-sheet__count">{people.length} people nearby</p>
+        <p className="nearby-sheet__count">
+          {people.length} people nearby
+          {livePeople.length === 0 ? ' · demo pins until Premium members go live' : ''}
+        </p>
         <div className="nearby-list">
           {people.map((person) => (
             <button
@@ -105,10 +171,28 @@ export function MapPage() {
                   <span className="tag">{person.looking}</span>
                   <span className="tag muted">{person.distance}</span>
                 </div>
+                {person.isLive && user && (
+                  <span
+                    className="ghost-chip"
+                    style={{ marginTop: 6, display: 'inline-flex', gap: 4 }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void followPerson(person.id)
+                    }}
+                  >
+                    <UserPlus size={14} />
+                    {followBusy === person.id ? '…' : 'Follow'}
+                  </span>
+                )}
               </div>
-              <span className="nearby-card__msg" aria-hidden>
+              <Link
+                to={user ? '/messages' : '/auth'}
+                className="nearby-card__msg"
+                aria-label="Message"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MessageCircle size={18} />
-              </span>
+              </Link>
             </button>
           ))}
         </div>

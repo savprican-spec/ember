@@ -42,10 +42,10 @@ async function main() {
   }
 
   {
-    const { res, data } = await api('/api/verify/config')
-    res.ok && data.priceCents === 699
-      ? pass('Verify config', `${data.priceCents} ${data.currency}`)
-      : fail('Verify config', JSON.stringify(data))
+    const { res, data } = await api('/api/premium/config')
+    res.ok && data.priceCents === 999
+      ? pass('Premium config', `${data.priceCents} ${data.currency}/${data.interval}`)
+      : fail('Premium config', JSON.stringify(data))
   }
 
   // Under-18 register blocked
@@ -64,7 +64,7 @@ async function main() {
     res.status === 400 ? pass('Block under-18 register') : fail('Block under-18 register', String(res.status))
   }
 
-  // Register adult
+  // Register free basic adult
   let userToken = ''
   let userId = ''
   {
@@ -79,58 +79,19 @@ async function main() {
         age: 25,
       }),
     })
-    if (res.ok && data.token && data.user?.ageVerified === false) {
+    if (res.ok && data.token && data.user?.premium === false) {
       userToken = data.token
       userId = data.user.id
-      pass('Register unverified adult')
-    } else fail('Register unverified adult', JSON.stringify(data).slice(0, 250))
+      pass('Register free basic adult')
+    } else fail('Register free basic adult', JSON.stringify(data).slice(0, 250))
   }
 
-  // Upload blocked before verify
-  {
-    const form = new FormData()
-    form.append('file', new Blob([tinyJpeg()], { type: 'image/jpeg' }), 'x.jpg')
-    form.append('title', 'blocked')
-    form.append('visibility', 'private')
-    const res = await fetch(`${API}/api/uploads`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}` },
-      body: form,
-    })
-    const data = await res.json()
-    res.status === 402 && data.code === 'AGE_VERIFY_REQUIRED'
-      ? pass('Uploads blocked until paid verify')
-      : fail('Uploads blocked until paid verify', `${res.status} ${JSON.stringify(data)}`)
-  }
-
-  // Underage DOB blocked
-  {
-    const { res, data } = await api('/api/verify/dev-complete', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ birthdate: '2012-01-01' }),
-    })
-    res.status === 400 ? pass('Block underage DOB on verify') : fail('Block underage DOB on verify', JSON.stringify(data))
-  }
-
-  // Paid verify (dev)
-  {
-    const { res, data } = await api('/api/verify/dev-complete', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ birthdate: '1995-06-15' }),
-    })
-    res.ok && data.user?.ageVerified
-      ? pass('Paid age verify (dev)')
-      : fail('Paid age verify (dev)', JSON.stringify(data).slice(0, 250))
-  }
-
-  // Upload allowed after verify
+  // Upload allowed on free basic
   let privateUrl = ''
   {
     const form = new FormData()
     form.append('file', new Blob([tinyJpeg()], { type: 'image/jpeg' }), 'private.jpg')
-    form.append('title', 'Private after verify')
+    form.append('title', 'Private basic upload')
     form.append('visibility', 'private')
     form.append('caption', 'admin should see')
     const res = await fetch(`${API}/api/uploads`, {
@@ -141,14 +102,85 @@ async function main() {
     const data = await res.json()
     if (res.ok && data.upload?.visibility === 'private') {
       privateUrl = data.upload.url
-      pass('Private upload after verify')
-    } else fail('Private upload after verify', JSON.stringify(data))
+      pass('Private upload on free basic')
+    } else fail('Private upload on free basic', JSON.stringify(data))
   }
 
   {
     const { data } = await api('/api/uploads/feed')
     const leaked = (data.uploads || []).some((u) => u.url === privateUrl)
     !leaked ? pass('Private hidden from public feed') : fail('Private hidden from public feed')
+  }
+
+  // Map browse free; appear gated
+  {
+    const { res, data } = await api('/api/map/nearby', {
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+    res.ok ? pass('Map browse free', `people=${(data.people || []).length}`) : fail('Map browse free', JSON.stringify(data))
+  }
+
+  {
+    const { res, data } = await api('/api/me', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mapVisible: true }),
+    })
+    res.status === 402 && data.code === 'PREMIUM_REQUIRED'
+      ? pass('Map appear blocked without Premium')
+      : fail('Map appear blocked without Premium', `${res.status} ${JSON.stringify(data)}`)
+  }
+
+  // Activate Premium (dev)
+  {
+    const { res, data } = await api('/api/premium/dev-activate', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+    res.ok && data.user?.premium
+      ? pass('Premium activate (dev)')
+      : fail('Premium activate (dev)', JSON.stringify(data).slice(0, 250))
+  }
+
+  {
+    const { res, data } = await api('/api/me', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mapVisible: true, lookingFor: 'Right now' }),
+    })
+    res.ok && data.user?.mapVisible
+      ? pass('Map appear after Premium')
+      : fail('Map appear after Premium', JSON.stringify(data).slice(0, 250))
+  }
+
+  // Follow another user
+  let peerId = ''
+  {
+    const { res, data } = await api('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: `peer${stamp}@example.com`,
+        password: 'password123',
+        displayName: 'Peer User',
+        handle: `peer${stamp}`,
+        age: 24,
+      }),
+    })
+    if (res.ok) {
+      peerId = data.user.id
+      pass('Register peer for follow')
+    } else fail('Register peer for follow', JSON.stringify(data).slice(0, 200))
+  }
+
+  {
+    const { res, data } = await api(`/api/follows/${peerId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userToken}` },
+    })
+    res.ok && data.following
+      ? pass('Follow user on basic/premium')
+      : fail('Follow user on basic/premium', JSON.stringify(data))
   }
 
   // Admin checks
@@ -169,9 +201,9 @@ async function main() {
     const { data } = await api('/api/admin/overview', {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
-    data.stats?.verifiedUsers >= 1 && data.stats?.verifyRevenueCents >= 699
-      ? pass('Admin stats show verified + revenue', `verified=${data.stats.verifiedUsers} revenue=${data.stats.verifyRevenueCents}`)
-      : fail('Admin stats show verified + revenue', JSON.stringify(data.stats))
+    data.stats?.premiumUsers >= 1 && data.stats?.premiumMrrCents >= 999
+      ? pass('Admin stats show Premium MRR', `premium=${data.stats.premiumUsers} mrr=${data.stats.premiumMrrCents}`)
+      : fail('Admin stats show Premium MRR', JSON.stringify(data.stats))
   }
 
   {
@@ -179,13 +211,11 @@ async function main() {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
     const hasPrivate = (data.uploads || []).some((u) => u.visibility === 'private')
-    const hasVerify = (data.verifications || []).some((v) => v.status === 'paid')
-    data.user?.ageVerified && hasPrivate && hasVerify
-      ? pass('Admin sees profile, private album, verify payment')
-      : fail('Admin sees profile, private album, verify payment', JSON.stringify({
-          ageVerified: data.user?.ageVerified,
+    data.user?.premium && hasPrivate
+      ? pass('Admin sees Premium profile + private album')
+      : fail('Admin sees Premium profile + private album', JSON.stringify({
+          premium: data.user?.premium,
           uploads: data.uploads?.length,
-          verifications: data.verifications,
         }).slice(0, 300))
   }
 
@@ -209,26 +239,24 @@ async function main() {
   try {
     await page.getByRole('button', { name: 'I am 18+' }).click()
     await page.waitForTimeout(500)
-    // Without auth, feed should redirect to auth
-    await page.waitForURL(/auth|verify|\//, { timeout: 5000 })
-    const hash = await page.evaluate(() => location.hash)
-    // RequirePaidAge redirects unauthenticated to /auth
-    hash.includes('auth') || (await page.locator('.auth-page, .feed-page, .verify-page').count()) > 0
-      ? pass('Age gate opens app', hash)
-      : fail('Age gate opens app', hash)
+    await page.waitForSelector('.feed-page', { timeout: 8000 })
+    pass('Age gate opens free feed')
   } catch (e) {
-    fail('Age gate opens app', String(e))
+    fail('Age gate opens free feed', String(e))
   }
 
-  // If landed on feed somehow without auth, go profile/auth manually
   try {
-    if (!(await page.locator('.auth-page').count())) {
-      await page.goto(`${WEB}/#/auth`, { waitUntil: 'networkidle' })
-    }
-    const uiStamp = Date.now()
+    await page.getByRole('link', { name: 'Nearby' }).click()
+    await page.waitForSelector('.map-page', { timeout: 5000 })
+    pass('Nearby map without paywall')
+  } catch (e) {
+    fail('Nearby map without paywall', String(e))
+  }
+
+  try {
+    await page.goto(`${WEB}/#/auth`, { waitUntil: 'networkidle' })
     await page.getByRole('tab', { name: 'Join' }).click()
-    await page.locator('label:has-text("Display name") input, input').nth(0).fill('UI Tester')
-    // fill form fields more reliably
+    const uiStamp = Date.now()
     const inputs = page.locator('.auth-form input')
     await inputs.nth(0).fill('UI Tester')
     await inputs.nth(1).fill(`ui${uiStamp}`)
@@ -236,29 +264,22 @@ async function main() {
     await inputs.nth(3).fill(`ui${uiStamp}@example.com`)
     await inputs.nth(4).fill('password123')
     await page.locator('form').getByRole('button', { name: /Join EMBER/i }).click()
-    await page.waitForURL(/verify/, { timeout: 8000 })
+    await page.waitForURL(/profile/, { timeout: 8000 })
+    await page.waitForSelector('.profile-page', { timeout: 5000 })
+    pass('Register → free basic profile')
+  } catch (e) {
+    fail('Register → free basic profile', String(e))
+  }
+
+  try {
+    await page.getByRole('link', { name: /Go Premium/i }).click()
+    await page.waitForURL(/premium/, { timeout: 8000 })
     await page.waitForSelector('.verify-page', { timeout: 5000 })
-    pass('Register → verify page')
+    await page.getByRole('button', { name: /Test Premium|Go Premium/i }).click()
+    await page.waitForURL(/map/, { timeout: 8000 })
+    pass('Premium unlock → map')
   } catch (e) {
-    fail('Register → verify page', String(e))
-  }
-
-  try {
-    await page.locator('input[type="date"]').fill('1994-04-04')
-    await page.getByRole('button', { name: /Test verify/i }).click()
-    await page.waitForURL(/#\/?$/, { timeout: 8000 })
-    await page.waitForSelector('.feed-page', { timeout: 8000 })
-    pass('Verify → feed unlocked')
-  } catch (e) {
-    fail('Verify → feed unlocked', String(e))
-  }
-
-  try {
-    await page.getByRole('link', { name: 'Nearby' }).click()
-    await page.waitForSelector('.map-page', { timeout: 5000 })
-    pass('Nearby map')
-  } catch (e) {
-    fail('Nearby map', String(e))
+    fail('Premium unlock → map', String(e))
   }
 
   try {
@@ -294,11 +315,12 @@ async function main() {
   try {
     await page.locator('.admin-nav').getByRole('link', { name: 'Users' }).click()
     await page.waitForSelector('.admin-table tbody tr', { timeout: 5000 })
-    await page.waitForSelector('.vis--verified', { timeout: 5000 })
-    const verifiedBadges = await page.locator('.vis--verified').count()
-    verifiedBadges > 0 ? pass('Admin users show verified badges', String(verifiedBadges)) : fail('Admin users show verified badges')
+    const premiumBadges = await page.locator('.vis--verified').count()
+    premiumBadges > 0
+      ? pass('Admin users show premium badges', String(premiumBadges))
+      : fail('Admin users show premium badges')
   } catch (e) {
-    fail('Admin users show verified badges', String(e))
+    fail('Admin users show premium badges', String(e))
   }
 
   try {

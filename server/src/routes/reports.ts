@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import { randomUUID } from 'node:crypto'
 import { db } from '../db.js'
-import { requireVerified } from '../auth.js'
+import { requireAuth } from '../auth.js'
 
 export const reportsRouter = Router()
-reportsRouter.use(requireVerified)
+reportsRouter.use(requireAuth)
 
 const REASONS = ['spam', 'harassment', 'underage_suspicion', 'nonconsensual', 'scam', 'illegal', 'other'] as const
 const TARGETS = ['user', 'upload', 'message', 'conversation'] as const

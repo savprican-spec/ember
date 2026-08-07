@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, MapPin, Flag } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Volume2, VolumeX, MapPin, Flag, UserPlus, UserCheck } from 'lucide-react'
 import type { VideoClip } from '../data/videos'
 import { formatCount } from '../data/videos'
-import { api, track } from '../lib/api'
+import { api, getToken, track } from '../lib/api'
 
 type VideoCardProps = {
   clip: VideoClip
@@ -17,6 +17,15 @@ export function VideoCard({ clip, active, muted, onToggleMute }: VideoCardProps)
   const [likes, setLikes] = useState(clip.likes)
   const [failed, setFailed] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [following, setFollowing] = useState(false)
+  const [followBusy, setFollowBusy] = useState(false)
+
+  useEffect(() => {
+    if (!clip.userId || !getToken()) return
+    api<{ following: boolean }>(`/api/follows/status/${clip.userId}`)
+      .then((d) => setFollowing(d.following))
+      .catch(() => undefined)
+  }, [clip.userId])
 
   useEffect(() => {
     const el = videoRef.current
@@ -101,6 +110,33 @@ function toggleLike() {
           <Share2 size={26} />
           <span>Share</span>
         </button>
+        {clip.userId ? (
+          <button
+            type="button"
+            className="rail-btn"
+            disabled={followBusy}
+            aria-label={following ? 'Following' : 'Follow'}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!getToken()) {
+                window.location.hash = '#/auth'
+                return
+              }
+              setFollowBusy(true)
+              const method = following ? 'DELETE' : 'POST'
+              void api(`/api/follows/${clip.userId}`, { method })
+                .then(() => {
+                  setFollowing(!following)
+                  track(following ? 'unfollow' : 'follow', 'user', clip.userId)
+                })
+                .catch((err) => window.alert(err instanceof Error ? err.message : 'Follow failed'))
+                .finally(() => setFollowBusy(false))
+            }}
+          >
+            {following ? <UserCheck size={24} /> : <UserPlus size={24} />}
+            <span>{following ? 'Added' : 'Follow'}</span>
+          </button>
+        ) : null}
         <button
           type="button"
           className="rail-btn"
@@ -136,7 +172,7 @@ function toggleLike() {
                 track('report_create', 'upload', clip.id)
               })
               .catch((err) => {
-                window.alert(err instanceof Error ? err.message : 'Report failed — sign in & verify first')
+                window.alert(err instanceof Error ? err.message : 'Report failed — sign in first')
               })
           }}
           aria-label="Report"

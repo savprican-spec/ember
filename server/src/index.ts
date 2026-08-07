@@ -3,14 +3,16 @@ import cors from 'cors'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import jwt from 'jsonwebtoken'
-import { seedAdmin, UPLOAD_DIR } from './db.js'
-import { authRouter } from './routes/auth.js'
+import { isPremium, seedAdmin, UPLOAD_DIR } from './db.js'
+import { authRouter, publicUser } from './routes/auth.js'
 import { uploadsRouter } from './routes/uploads.js'
 import { eventsRouter } from './routes/events.js'
 import { adminRouter } from './routes/admin.js'
-import { verifyRouter, handleStripeWebhook } from './routes/verify.js'
+import { premiumRouter, handleStripeWebhook } from './routes/premium.js'
 import { messagesRouter } from './routes/messages.js'
 import { reportsRouter } from './routes/reports.js'
+import { followsRouter } from './routes/follows.js'
+import { mapRouter } from './routes/map.js'
 import { requireAuth, requireAdmin, type AuthUser } from './auth.js'
 import { db } from './db.js'
 
@@ -24,7 +26,7 @@ const app = express()
 app.use(cors({ origin: true, credentials: true }))
 
 // Stripe webhook needs raw body
-app.post('/api/verify/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+app.post('/api/premium/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     await handleStripeWebhook(req.body as Buffer, req.headers['stripe-signature'] as string | undefined)
     res.json({ received: true })
@@ -41,10 +43,12 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.use('/api/auth', authRouter)
-app.use('/api/verify', verifyRouter)
+app.use('/api/premium', premiumRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/messages', messagesRouter)
 app.use('/api/reports', reportsRouter)
+app.use('/api/follows', followsRouter)
+app.use('/api/map', mapRouter)
 app.use('/api/events', eventsRouter)
 app.use('/api/admin', adminRouter)
 
@@ -73,8 +77,21 @@ app.get('/api/media/:filename', (req, res) => {
 })
 
 app.patch('/api/me', requireAuth, (req, res) => {
-  const { displayName, bio, lookingFor, mapVisible, avatarUrl } = req.body ?? {}
+  const { displayName, bio, lookingFor, mapVisible, avatarUrl, lat, lng } = req.body ?? {}
   const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.user!.id) as Record<string, unknown>
+
+  if (mapVisible === true && !isPremium(row)) {
+    return res.status(402).json({
+      error: 'Premium ($9.99/mo) is required to appear on the meetup map',
+      code: 'PREMIUM_REQUIRED',
+    })
+  }
+
+  const nextLat =
+    lat === null ? null : typeof lat === 'number' && Number.isFinite(lat) ? lat : row.lat
+  const nextLng =
+    lng === null ? null : typeof lng === 'number' && Number.isFinite(lng) ? lng : row.lng
+
   db.prepare(
     `UPDATE users SET
       display_name = ?,
@@ -82,6 +99,8 @@ app.patch('/api/me', requireAuth, (req, res) => {
       looking_for = ?,
       map_visible = ?,
       avatar_url = ?,
+      lat = ?,
+      lng = ?,
       last_seen_at = ?
      WHERE id = ?`,
   ).run(
@@ -90,29 +109,13 @@ app.patch('/api/me', requireAuth, (req, res) => {
     lookingFor ?? row.looking_for,
     mapVisible === undefined ? row.map_visible : mapVisible ? 1 : 0,
     avatarUrl ?? row.avatar_url,
+    nextLat,
+    nextLng,
     new Date().toISOString(),
     req.user!.id,
   )
   const updated = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.user!.id) as Record<string, unknown>
-  res.json({
-    user: {
-      id: updated.id,
-      email: updated.email,
-      displayName: updated.display_name,
-      handle: updated.handle,
-      age: updated.age,
-      bio: updated.bio,
-      avatarUrl: updated.avatar_url,
-      lookingFor: updated.looking_for,
-      mapVisible: Boolean(updated.map_visible),
-      role: updated.role,
-      ageVerified: Boolean(updated.age_verified) || updated.role === 'admin',
-      ageVerifiedAt: updated.age_verified_at,
-      birthdate: updated.birthdate,
-      createdAt: updated.created_at,
-      lastSeenAt: updated.last_seen_at,
-    },
-  })
+  res.json({ user: publicUser(updated) })
 })
 
 app.get('/api/admin/media/:filename', requireAdmin, (req, res) => {

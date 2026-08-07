@@ -13,7 +13,7 @@ type AdminUser = {
   uploadCount: number
   privateCount: number
   publicCount: number
-  ageVerified?: boolean
+  premium?: boolean
 }
 
 export function AdminUsersPage() {
@@ -61,7 +61,7 @@ export function AdminUsersPage() {
                   <Link to={`/admin/users/${u.id}`}>
                     {u.displayName} <span>@{u.handle}</span>
                   </Link>
-                  {u.ageVerified ? <span className="vis vis--verified">verified</span> : <span className="vis">unverified</span>}
+                  {u.premium ? <span className="vis vis--verified">premium</span> : <span className="vis">basic</span>}
                 </td>
                 <td>{u.email}</td>
                 <td>{u.uploadCount}</td>

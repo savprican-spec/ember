@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
-import { db } from './db.js'
+import { db, isPremium } from './db.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ember-dev-secret-change-in-production'
 
@@ -10,7 +10,7 @@ export type AuthUser = {
   display_name: string
   handle: string
   role: 'user' | 'admin'
-  age_verified?: boolean
+  premium?: boolean
 }
 
 declare global {
@@ -37,8 +37,12 @@ export function signToken(user: AuthUser) {
 
 function loadUser(id: string): AuthUser | undefined {
   const row = db
-    .prepare(`SELECT id, email, display_name, handle, role, age_verified FROM users WHERE id = ?`)
-    .get(id) as (AuthUser & { age_verified: number }) | undefined
+    .prepare(
+      `SELECT id, email, display_name, handle, role, premium, premium_until FROM users WHERE id = ?`,
+    )
+    .get(id) as
+    | (AuthUser & { premium: number; premium_until: string | null })
+    | undefined
   if (!row) return undefined
   return {
     id: row.id,
@@ -46,7 +50,7 @@ function loadUser(id: string): AuthUser | undefined {
     display_name: row.display_name,
     handle: row.handle,
     role: row.role,
-    age_verified: Boolean(row.age_verified) || row.role === 'admin',
+    premium: isPremium(row),
   }
 }
 
@@ -66,12 +70,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export function requireVerified(req: Request, res: Response, next: NextFunction) {
+export function requirePremium(req: Request, res: Response, next: NextFunction) {
   requireAuth(req, res, () => {
-    if (req.user?.role === 'admin' || req.user?.age_verified) return next()
+    if (req.user?.role === 'admin' || req.user?.premium) return next()
     return res.status(402).json({
-      error: 'Age verification payment required',
-      code: 'AGE_VERIFY_REQUIRED',
+      error: 'Premium required to appear on the meetup map',
+      code: 'PREMIUM_REQUIRED',
     })
   })
 }

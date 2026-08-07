@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Camera, Eye, EyeOff, MapPin, Settings } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { api, mediaUrl, track } from '../lib/api'
+import { api, mediaUrl, track, type ApiError } from '../lib/api'
 
 type MineUpload = {
   id: string
@@ -13,11 +13,20 @@ type MineUpload = {
   createdAt: string
 }
 
+type FollowUser = {
+  id: string
+  displayName: string
+  handle: string
+  avatarUrl: string
+}
+
 export function ProfilePage() {
   const { user, logout, refresh } = useAuth()
-  const [visible, setVisible] = useState(true)
+  const navigate = useNavigate()
+  const [visible, setVisible] = useState(false)
   const [looking, setLooking] = useState('Right now')
   const [uploads, setUploads] = useState<MineUpload[]>([])
+  const [following, setFollowing] = useState<FollowUser[]>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -30,6 +39,9 @@ export function ProfilePage() {
     api<{ uploads: MineUpload[] }>('/api/uploads/mine')
       .then((d) => setUploads(d.uploads))
       .catch(() => undefined)
+    api<{ following: FollowUser[] }>('/api/follows/me')
+      .then((d) => setFollowing(d.following))
+      .catch(() => undefined)
     track('profile_view', 'user', user.id)
   }, [user])
 
@@ -41,8 +53,16 @@ export function ProfilePage() {
         body: JSON.stringify({ mapVisible: nextVisible, lookingFor: nextLooking }),
       })
       await refresh()
-    } catch {
-      /* ignore offline */
+      setMessage(nextVisible ? 'You’re visible on the meetup map.' : 'Hidden from the meetup map.')
+    } catch (err) {
+      const apiErr = err as ApiError
+      if (apiErr.code === 'PREMIUM_REQUIRED' || apiErr.status === 402) {
+        setVisible(false)
+        navigate('/premium')
+        return
+      }
+      setMessage(apiErr.message || 'Could not save')
+      setVisible(user.mapVisible)
     }
   }
 
@@ -74,7 +94,7 @@ export function ProfilePage() {
         <header className="page-header">
           <p className="brand brand--sm">EMBER</p>
           <h1>You</h1>
-          <p className="page-header__sub">Create an account to upload clips and show up nearby.</p>
+          <p className="page-header__sub">Create a free basic profile to upload clips, message, and follow people.</p>
         </header>
         <Link className="btn btn--primary" to="/auth" style={{ display: 'inline-block', textAlign: 'center' }}>
           Register / Sign in
@@ -120,10 +140,11 @@ export function ProfilePage() {
             {user.displayName}, {user.age}
           </h2>
           <p className="profile-hero__handle">@{user.handle}</p>
-          <p className="profile-hero__bio">{user.bio || 'Add a bio from settings soon.'}</p>
+          <p className="profile-hero__bio">{user.bio || 'Free basic profile — upload, message, follow.'}</p>
           <div className="tag-row">
             <span className="tag">nsfw</span>
             <span className="tag">{user.lookingFor}</span>
+            <span className={`tag ${user.premium ? '' : 'muted'}`}>{user.premium ? 'Premium' : 'Basic'}</span>
           </div>
         </div>
       </section>
@@ -132,21 +153,31 @@ export function ProfilePage() {
         <div className="toggle-row">
           <div>
             <strong>Visible on map</strong>
-            <p>Others nearby can find you for casual meetups.</p>
+            <p>
+              {user.premium
+                ? 'Others nearby can find you for casual meetups.'
+                : 'Premium ($9.99/mo) is required to appear for meetups. You can still browse the map for free.'}
+            </p>
           </div>
-          <button
-            type="button"
-            className={`toggle ${visible ? 'is-on' : ''}`}
-            aria-pressed={visible}
-            onClick={() => {
-              const next = !visible
-              setVisible(next)
-              void savePrefs(next, looking)
-            }}
-          >
-            {visible ? <Eye size={16} /> : <EyeOff size={16} />}
-            {visible ? 'On' : 'Off'}
-          </button>
+          {user.premium ? (
+            <button
+              type="button"
+              className={`toggle ${visible ? 'is-on' : ''}`}
+              aria-pressed={visible}
+              onClick={() => {
+                const next = !visible
+                setVisible(next)
+                void savePrefs(next, looking)
+              }}
+            >
+              {visible ? <Eye size={16} /> : <EyeOff size={16} />}
+              {visible ? 'On' : 'Off'}
+            </button>
+          ) : (
+            <Link className="ghost-chip" to="/premium">
+              Go Premium
+            </Link>
+          )}
         </div>
 
         <label className="field">
@@ -170,6 +201,24 @@ export function ProfilePage() {
           <MapPin size={16} />
           <span>{user.email}</span>
         </div>
+        {message && <p className="form-hint">{message}</p>}
+      </section>
+
+      <section className="profile-panel">
+        <div className="page-header__row">
+          <h3>Following ({following.length})</h3>
+        </div>
+        {following.length === 0 ? (
+          <p className="form-hint">Follow people from the feed or map — free on basic.</p>
+        ) : (
+          <ul className="admin-list">
+            {following.map((f) => (
+              <li key={f.id}>
+                <strong>{f.displayName}</strong> <span>@{f.handle}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="profile-clips">
@@ -180,7 +229,6 @@ export function ProfilePage() {
             <option value="private">Upload as private</option>
           </select>
         </div>
-        {message && <p className="form-hint">{message}</p>}
         <div className="clip-grid">
           {uploads.map((u) => (
             <button key={u.id} type="button" className="clip-tile">

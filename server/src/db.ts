@@ -140,6 +140,8 @@ ensureColumn('users', 'premium_until', 'TEXT')
 ensureColumn('users', 'stripe_subscription_id', 'TEXT')
 ensureColumn('users', 'lat', 'REAL')
 ensureColumn('users', 'lng', 'REAL')
+ensureColumn('users', 'looking_note', "TEXT DEFAULT ''")
+ensureColumn('users', 'looking_posted_at', 'TEXT')
 
 // Meetup map visibility is premium-only; default off for free basic profiles
 db.prepare(`UPDATE users SET map_visible = 0 WHERE premium = 0 AND role != 'admin'`).run()
@@ -204,6 +206,13 @@ export function markUserPremium(userId: string, untilIso: string, subscriptionId
 
 export function clearUserPremium(userId: string) {
   db.prepare(
-    `UPDATE users SET premium = 0, premium_until = NULL, map_visible = 0, stripe_subscription_id = NULL WHERE id = ?`,
+    `UPDATE users SET
+      premium = 0,
+      premium_until = NULL,
+      map_visible = 0,
+      looking_note = '',
+      looking_posted_at = NULL,
+      stripe_subscription_id = NULL
+     WHERE id = ?`,
   ).run(userId)
 }

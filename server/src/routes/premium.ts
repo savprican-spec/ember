@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import Stripe from 'stripe'
 import { clearUserPremium, db, isPremium, markUserPremium, PREMIUM_CURRENCY, PREMIUM_PRICE_CENTS } from '../db.js'
 import { requireAuth } from '../auth.js'
+import { publicUser } from './auth.js'
 
 export const premiumRouter = Router()
 
@@ -20,26 +21,6 @@ function appOrigin(req: { headers: Record<string, unknown> }) {
   )
 }
 
-function publicUser(row: Record<string, unknown>) {
-  const premium = isPremium(row)
-  return {
-    id: row.id,
-    email: row.email,
-    displayName: row.display_name,
-    handle: row.handle,
-    age: row.age,
-    bio: row.bio,
-    avatarUrl: row.avatar_url,
-    lookingFor: row.looking_for,
-    mapVisible: Boolean(row.map_visible) && premium,
-    role: row.role,
-    premium,
-    premiumUntil: row.premium_until,
-    createdAt: row.created_at,
-    lastSeenAt: row.last_seen_at,
-  }
-}
-
 premiumRouter.get('/config', (_req, res) => {
   res.json({
     priceCents: PREMIUM_PRICE_CENTS,
@@ -47,9 +28,15 @@ premiumRouter.get('/config', (_req, res) => {
     interval: 'month',
     stripeEnabled: Boolean(process.env.STRIPE_SECRET_KEY),
     allowDevBypass: process.env.PREMIUM_ALLOW_DEV === '1' || !process.env.STRIPE_SECRET_KEY,
-    label: 'Ember Premium',
+    label: 'Ember Premium — Casual encounters',
     description:
-      'Free members get the XXX feed, messaging, follows, and can browse the map. Premium ($9.99/mo) lets you appear on the map for meetups and casual encounters.',
+      'Not a dating app. Premium is for going live nearby: post what you’re looking for right now, appear on the map, and arrange casual encounters. Feed, messaging, and follows stay free.',
+    features: [
+      'Post “Right now” — what you want for a casual meet',
+      'Go live on the nearby map so others can find you',
+      'Set hosting / cruising / car / hotel intent',
+      'Pulse freshness so people know you’re available',
+    ],
   })
 })
 
@@ -83,8 +70,9 @@ premiumRouter.post('/checkout', requireAuth, async (req, res) => {
           unit_amount: PREMIUM_PRICE_CENTS,
           recurring: { interval: 'month' },
           product_data: {
-            name: 'EMBER Premium — Map Meetups',
-            description: 'Appear on the nearby map for casual meetups. Feed & messaging stay free.',
+            name: 'EMBER Premium — Casual Encounters',
+            description:
+              'Go live nearby, post what you’re looking for right now, and appear for casual encounters. Not dating — feed & messaging stay free.',
           },
         },
       },

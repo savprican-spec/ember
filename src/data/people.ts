@@ -45,9 +45,9 @@ export const nearbyPeople: NearbyPerson[] = [
     name: 'Ash',
     age: 31,
     distance: '2.1 mi',
-    looking: 'Traveling',
+    looking: 'Cruising',
     status: 'away',
-    note: 'Passing through till 2am.',
+    note: 'Passing through till 2am — quick meet only.',
     lat: 37.802,
     lng: -122.419,
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',
@@ -97,14 +97,14 @@ export const nearbyPeople: NearbyPerson[] = [
     name: 'Mila',
     age: 27,
     distance: '1.7 mi',
-    looking: 'Traveling',
+    looking: 'Hotel',
     status: 'just-now',
-    note: 'Bar crawl ending soon.',
+    note: 'Lobby meet — say what you want.',
     lat: 37.771,
     lng: -122.412,
     avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop',
-    tags: ['bars', 'tonight'],
+    tags: ['hotel', 'tonight'],
   },
 ]
 
-export const lookingFilters = ['All', 'Right now', 'Hosting', 'Traveling', 'Car', 'Tonight'] as const
+export const lookingFilters = ['All', 'Right now', 'Hosting', 'Cruising', 'Car', 'Hotel', 'Tonight'] as const

@@ -2,57 +2,78 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import L from 'leaflet'
-import { lookingFilters, nearbyPeople, type NearbyPerson } from '../data/people'
-import { MessageCircle, Navigation, UserPlus } from 'lucide-react'
+import { nearbyPeople, type NearbyPerson } from '../data/people'
+import { LOOKING_FILTERS, LOOKING_HINTS, LOOKING_OPTIONS, type LookingOption } from '../data/looking'
+import { Flame, MessageCircle, UserPlus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { api, track } from '../lib/api'
+import { api, track, type EmberUser } from '../lib/api'
 
-function avatarIcon(url: string, online: boolean) {
+function avatarIcon(url: string, online: boolean, rightNow?: boolean) {
   return L.divIcon({
     className: 'ember-marker',
-    html: `<div class="ember-marker__wrap ${online ? 'is-online' : ''}"><img src="${url}" alt="" /></div>`,
+    html: `<div class="ember-marker__wrap ${online ? 'is-online' : ''} ${rightNow ? 'is-right-now' : ''}"><img src="${url}" alt="" /></div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
     popupAnchor: [0, -24],
   })
 }
 
-type MapPerson = NearbyPerson & { premium?: boolean; isLive?: boolean }
+type MapPerson = NearbyPerson & {
+  premium?: boolean
+  isLive?: boolean
+  rightNow?: boolean
+  lookingPostedAt?: string | null
+}
 
 export function MapPage() {
-  const { user } = useAuth()
-  const [filter, setFilter] = useState<(typeof lookingFilters)[number]>('All')
+  const { user, refresh } = useAuth()
+  const [filter, setFilter] = useState<(typeof LOOKING_FILTERS)[number]>('All')
   const [livePeople, setLivePeople] = useState<MapPerson[]>([])
   const [selected, setSelected] = useState<MapPerson | null>(null)
   const [followBusy, setFollowBusy] = useState<string | null>(null)
+  const [looking, setLooking] = useState<LookingOption>('Right now')
+  const [note, setNote] = useState('')
+  const [pulseBusy, setPulseBusy] = useState(false)
+  const [pulseMsg, setPulseMsg] = useState('')
+
+  async function loadNearby() {
+    try {
+      const d = await api<{ people: Array<Record<string, unknown>> }>('/api/map/nearby')
+      const mapped: MapPerson[] = (d.people || []).map((p) => ({
+        id: String(p.id),
+        name: String(p.name),
+        age: Number(p.age) || 21,
+        looking: String(p.looking || 'Right now'),
+        note: String(p.note || ''),
+        avatar: String(p.avatar),
+        lat: Number(p.lat),
+        lng: Number(p.lng),
+        status: (p.status === 'online' || p.status === 'just-now' ? p.status : 'away') as NearbyPerson['status'],
+        distance: String(p.distance || 'nearby'),
+        tags: Array.isArray(p.tags) ? (p.tags as string[]) : [],
+        premium: Boolean(p.premium),
+        isLive: true,
+        rightNow: Boolean(p.rightNow),
+        lookingPostedAt: (p.lookingPostedAt as string | null) || null,
+      }))
+      setLivePeople(mapped)
+      if (mapped[0]) setSelected(mapped[0])
+    } catch {
+      setLivePeople([])
+      setSelected(nearbyPeople[0])
+    }
+  }
 
   useEffect(() => {
-    api<{ people: Array<Record<string, unknown>> }>('/api/map/nearby')
-      .then((d) => {
-        const mapped: MapPerson[] = (d.people || []).map((p) => ({
-          id: String(p.id),
-          name: String(p.name),
-          age: Number(p.age) || 21,
-          looking: String(p.looking || 'Tonight'),
-          note: String(p.note || ''),
-          avatar: String(p.avatar),
-          lat: Number(p.lat),
-          lng: Number(p.lng),
-          status: (p.status === 'online' ? 'online' : 'away') as NearbyPerson['status'],
-          distance: String(p.distance || 'nearby'),
-          tags: Array.isArray(p.tags) ? (p.tags as string[]) : [],
-          premium: Boolean(p.premium),
-          isLive: true,
-        }))
-        setLivePeople(mapped)
-        if (mapped[0]) setSelected(mapped[0])
-      })
-      .catch(() => {
-        setLivePeople([])
-        setSelected(nearbyPeople[0])
-      })
+    void loadNearby()
     track('map_view')
   }, [])
+
+  useEffect(() => {
+    if (!user?.premium) return
+    setLooking((user.lookingFor as LookingOption) || 'Right now')
+    setNote(user.lookingNote || '')
+  }, [user])
 
   const people = useMemo(() => {
     const source = livePeople.length > 0 ? livePeople : nearbyPeople.map((p) => ({ ...p, isLive: false }))
@@ -75,27 +96,93 @@ export function MapPage() {
     }
   }
 
+  async function postPulse() {
+    if (!user?.premium) return
+    setPulseBusy(true)
+    setPulseMsg('')
+    try {
+      const data = await api<{ user: EmberUser }>('/api/map/pulse', {
+        method: 'POST',
+        body: JSON.stringify({ lookingFor: looking, lookingNote: note, mapVisible: true }),
+      })
+      await refresh()
+      setPulseMsg(data.user.mapVisible ? 'You’re live for casual encounters nearby.' : 'Posted.')
+      track('encounter_pulse', 'user', user.id, { lookingFor: looking })
+      await loadNearby()
+    } catch (err) {
+      setPulseMsg(err instanceof Error ? err.message : 'Could not post')
+    } finally {
+      setPulseBusy(false)
+    }
+  }
+
   return (
     <div className="map-page">
       <header className="map-page__header">
         <div>
           <p className="brand brand--sm">EMBER</p>
-          <h1>Nearby heat</h1>
+          <h1>Nearby now</h1>
         </div>
         {user?.premium ? (
-          <Link to="/profile" className="ghost-chip">
-            <Navigation size={16} />
-            {user.mapVisible ? 'Visible' : 'Hidden'}
-          </Link>
+          <span className="ghost-chip">
+            <Flame size={16} />
+            {user.mapVisible ? 'Live' : 'Hidden'}
+          </span>
         ) : (
           <Link to={user ? '/premium' : '/auth'} className="ghost-chip">
-            Appear — $9.99/mo
+            Go live — $9.99/mo
           </Link>
         )}
       </header>
 
-      <div className="filter-row" role="tablist" aria-label="Looking for">
-        {lookingFilters.map((f) => (
+      <p className="map-encounter-tagline">
+        Casual encounters only — not dating. Browse free. Post what you want and appear with Premium.
+      </p>
+
+      {user?.premium ? (
+        <section className="pulse-composer">
+          <div className="pulse-composer__top">
+            <strong>Post right now</strong>
+            <span>{LOOKING_HINTS[looking]}</span>
+          </div>
+          <div className="filter-row pulse-composer__intents" role="tablist" aria-label="What you want">
+            {LOOKING_OPTIONS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={looking === f}
+                className={`filter-chip ${looking === f ? 'is-active' : ''}`}
+                onClick={() => setLooking(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <label className="field">
+            <span>What you’re looking for</span>
+            <textarea
+              rows={2}
+              maxLength={140}
+              value={note}
+              placeholder="Be direct — e.g. discreet car meet, hosting now, oral only…"
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
+          <button type="button" className="btn btn--primary" disabled={pulseBusy} onClick={() => void postPulse()}>
+            {pulseBusy ? 'Posting…' : 'Go live on map'}
+          </button>
+          {pulseMsg && <p className="form-hint">{pulseMsg}</p>}
+        </section>
+      ) : (
+        <p className="form-hint map-upsell">
+          Want to post “right now” and show up for a meet?{' '}
+          <Link to={user ? '/premium' : '/auth'}>Unlock Premium encounters</Link>
+        </p>
+      )}
+
+      <div className="filter-row" role="tablist" aria-label="Filter nearby">
+        {LOOKING_FILTERS.map((f) => (
           <button
             key={f}
             type="button"
@@ -108,13 +195,6 @@ export function MapPage() {
           </button>
         ))}
       </div>
-
-      {!user?.premium && (
-        <p className="form-hint" style={{ margin: '0 1rem 0.5rem' }}>
-          Browse free. Pins are Premium members who chose to appear. Want to show up for meetups?{' '}
-          <Link to={user ? '/premium' : '/auth'}>Go Premium</Link>
-        </p>
-      )}
 
       <div className="map-shell">
         <MapContainer center={center} zoom={13} className="map-canvas" zoomControl={false}>
@@ -131,13 +211,15 @@ export function MapPage() {
             <Marker
               key={person.id}
               position={[person.lat, person.lng]}
-              icon={avatarIcon(person.avatar, person.status === 'online')}
+              icon={avatarIcon(person.avatar, person.status === 'online', person.rightNow)}
               eventHandlers={{ click: () => setSelected(person) }}
             >
               <Popup>
                 <strong>{person.name}</strong>, {person.age}
                 <br />
                 {person.looking}
+                <br />
+                {person.note}
               </Popup>
             </Marker>
           ))}
@@ -147,8 +229,8 @@ export function MapPage() {
       <div className="nearby-sheet">
         <div className="nearby-sheet__handle" aria-hidden />
         <p className="nearby-sheet__count">
-          {people.length} people nearby
-          {livePeople.length === 0 ? ' · demo pins until Premium members go live' : ''}
+          {people.length} nearby
+          {livePeople.length === 0 ? ' · demo until people go live' : ' · live encounter posts'}
         </p>
         <div className="nearby-list">
           {people.map((person) => (
@@ -164,7 +246,9 @@ export function MapPage() {
                   <strong>
                     {person.name}, {person.age}
                   </strong>
-                  <span className={`status status--${person.status}`}>{person.status.replace('-', ' ')}</span>
+                  <span className={`status status--${person.status}`}>
+                    {person.rightNow || person.looking === 'Right now' ? 'right now' : person.status.replace('-', ' ')}
+                  </span>
                 </div>
                 <p>{person.note}</p>
                 <div className="tag-row">
@@ -181,7 +265,7 @@ export function MapPage() {
                     }}
                   >
                     <UserPlus size={14} />
-                    {followBusy === person.id ? '…' : 'Follow'}
+                    {followBusy === person.id ? '…' : 'Add'}
                   </span>
                 )}
               </div>

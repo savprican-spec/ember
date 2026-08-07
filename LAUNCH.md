@@ -6,7 +6,7 @@ GitHub Pages can only host the static demo. A public launch with registration, u
 
 - Entry age gate (“I am 18+”) + registration (age ≥ 18)
 - **Free basic profile**: messaging, XXX feed uploads, follow/add people, browse the map
-- **Premium map meetups** ($9.99/mo Stripe subscription) — required only to **appear** on the map for casual encounters
+- **Premium casual encounters** ($9.99/mo) — post “right now” / looking-for intent and **go live** on the map (not a dating product)
 - Clip uploads with **public** or **private** visibility (any signed-in basic user)
 - Interaction events (page views, likes, logins, uploads, premium, follows)
 - **Admin hub** at `/#/admin`

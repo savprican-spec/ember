@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { MapPin } from 'lucide-react'
+import { Flame } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { api, formatMoney, track } from '../lib/api'
 
@@ -12,6 +12,7 @@ type PremiumConfig = {
   allowDevBypass: boolean
   label: string
   description: string
+  features?: string[]
 }
 
 export function PremiumPage() {
@@ -39,7 +40,7 @@ export function PremiumPage() {
     })
       .then(async () => {
         await refresh()
-        setMessage('Premium unlocked — you can appear on the meetup map.')
+        setMessage('Premium unlocked — post what you want and go live nearby.')
         track('premium_confirm_success')
         navigate('/map', { replace: true })
       })
@@ -51,6 +52,13 @@ export function PremiumPage() {
     if (!config) return '$9.99'
     return `${formatMoney(config.priceCents, config.currency)}/mo`
   }, [config])
+
+  const features = config?.features || [
+    'Post “Right now” — what you want for a casual meet',
+    'Go live on the nearby map so others can find you',
+    'Set hosting / cruising / car / hotel intent',
+    'Pulse freshness so people know you’re available',
+  ]
 
   if (loading) {
     return (
@@ -64,8 +72,8 @@ export function PremiumPage() {
     return (
       <div className="verify-page">
         <p className="brand brand--sm">EMBER</p>
-        <h1>Ember Premium</h1>
-        <p className="page-header__sub">Sign in first, then unlock map meetups.</p>
+        <h1>Casual encounters Premium</h1>
+        <p className="page-header__sub">Sign in first — this isn’t a dating tier, it’s for going live nearby.</p>
         <Link className="btn btn--primary" to="/auth">
           Sign in
         </Link>
@@ -77,18 +85,18 @@ export function PremiumPage() {
     return (
       <div className="verify-page">
         <div className="verify-card">
-          <MapPin size={36} className="verify-icon" />
+          <Flame size={36} className="verify-icon" />
           <p className="brand brand--sm">EMBER</p>
-          <h1>You’re Premium</h1>
+          <h1>You’re live-ready</h1>
           <p className="page-header__sub">
-            Appear on the meetup map anytime from your profile
+            Post what you’re looking for and appear on the encounter map
             {user.premiumUntil ? ` · active until ${new Date(user.premiumUntil).toLocaleDateString()}` : ''}.
           </p>
           <Link className="btn btn--primary" to="/map">
-            Open map
+            Post right now
           </Link>
           <Link className="btn btn--ghost" to="/profile">
-            Profile settings
+            Encounter settings
           </Link>
         </div>
       </div>
@@ -127,29 +135,33 @@ export function PremiumPage() {
   return (
     <div className="verify-page">
       <div className="verify-card">
-        <MapPin size={36} className="verify-icon" />
+        <Flame size={36} className="verify-icon" />
         <p className="brand brand--sm">EMBER</p>
-        <h1>Appear on the map</h1>
+        <h1>Casual encounters</h1>
         <p className="page-header__sub">
-          Basic is free — message, upload XXX to the feed, follow people, and browse the map. Premium unlocks
-          appearing for meetups and casual encounters.
+          Not a dating app. Premium is built for now: post what you want, go live on the map, and meet nearby.
+          The XXX feed, messaging, and follows stay free.
         </p>
         <div className="verify-price">
           <strong>{priceLabel}</strong>
           <span>cancel anytime</span>
         </div>
         <ol className="verify-steps">
-          <li>Keep the feed & messaging free</li>
-          <li>Subscribe to show your pin nearby</li>
-          <li>Toggle visibility anytime in profile</li>
+          {features.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
         </ol>
         {message && <p className="form-hint">{message}</p>}
         {error && <p className="form-error">{error}</p>}
         <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void startCheckout()}>
-          {busy ? 'Starting…' : config?.allowDevBypass && !config.stripeEnabled ? 'Test Premium (dev)' : `Go Premium — ${priceLabel}`}
+          {busy
+            ? 'Starting…'
+            : config?.allowDevBypass && !config.stripeEnabled
+              ? 'Test Premium (dev)'
+              : `Go Premium — ${priceLabel}`}
         </button>
         <Link className="btn btn--ghost" to="/">
-          Keep free basic
+          Keep free feed
         </Link>
       </div>
     </div>

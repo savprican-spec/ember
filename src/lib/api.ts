@@ -7,6 +7,8 @@ export type EmberUser = {
   bio: string
   avatarUrl: string
   lookingFor: string
+  lookingNote?: string
+  lookingPostedAt?: string | null
   mapVisible: boolean
   role: 'user' | 'admin'
   premium: boolean

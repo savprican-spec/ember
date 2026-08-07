@@ -112,12 +112,23 @@ async function main() {
     !leaked ? pass('Private hidden from public feed') : fail('Private hidden from public feed')
   }
 
-  // Map browse free; appear gated
+  // Map browse free; encounter posts gated
   {
     const { res, data } = await api('/api/map/nearby', {
       headers: { Authorization: `Bearer ${userToken}` },
     })
     res.ok ? pass('Map browse free', `people=${(data.people || []).length}`) : fail('Map browse free', JSON.stringify(data))
+  }
+
+  {
+    const { res, data } = await api('/api/me', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lookingFor: 'Right now', lookingNote: 'hosting now' }),
+    })
+    res.status === 402 && data.code === 'PREMIUM_REQUIRED'
+      ? pass('Right-now post blocked without Premium')
+      : fail('Right-now post blocked without Premium', `${res.status} ${JSON.stringify(data)}`)
   }
 
   {
@@ -143,14 +154,26 @@ async function main() {
   }
 
   {
-    const { res, data } = await api('/api/me', {
-      method: 'PATCH',
+    const { res, data } = await api('/api/map/pulse', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mapVisible: true, lookingFor: 'Right now' }),
+      body: JSON.stringify({
+        lookingFor: 'Right now',
+        lookingNote: 'Discreet car meet — say what you want',
+        mapVisible: true,
+      }),
     })
-    res.ok && data.user?.mapVisible
-      ? pass('Map appear after Premium')
-      : fail('Map appear after Premium', JSON.stringify(data).slice(0, 250))
+    res.ok && data.user?.mapVisible && data.user?.lookingNote
+      ? pass('Premium right-now pulse live on map')
+      : fail('Premium right-now pulse live on map', JSON.stringify(data).slice(0, 250))
+  }
+
+  {
+    const { data } = await api('/api/map/nearby')
+    const mine = (data.people || []).find((p) => p.id === userId)
+    mine?.looking === 'Right now' && mine?.note
+      ? pass('Nearby shows looking-for note', String(mine.note).slice(0, 60))
+      : fail('Nearby shows looking-for note', JSON.stringify(mine || data.people?.slice(0, 1)))
   }
 
   // Follow another user
@@ -272,14 +295,15 @@ async function main() {
   }
 
   try {
-    await page.getByRole('link', { name: /Go Premium/i }).click()
+    await page.getByRole('link', { name: /Unlock encounters|\$9\.99/i }).first().click()
     await page.waitForURL(/premium/, { timeout: 8000 })
     await page.waitForSelector('.verify-page', { timeout: 5000 })
     await page.getByRole('button', { name: /Test Premium|Go Premium/i }).click()
     await page.waitForURL(/map/, { timeout: 8000 })
-    pass('Premium unlock → map')
+    await page.waitForSelector('.pulse-composer', { timeout: 5000 })
+    pass('Premium unlock → encounter map composer')
   } catch (e) {
-    fail('Premium unlock → map', String(e))
+    fail('Premium unlock → encounter map composer', String(e))
   }
 
   try {

@@ -45,7 +45,7 @@ export function AuthPage() {
     <div className="auth-page">
       <p className="brand brand--sm">EMBER</p>
       <h1>{mode === 'login' ? 'Welcome back' : 'Create your heat profile'}</h1>
-      <p className="page-header__sub">18+ only. Free basic: upload, message, follow. Premium unlocks map meetups.</p>
+      <p className="page-header__sub">18+ only. Free: upload, message, follow. Premium: post “right now” for casual encounters.</p>
 
       <div className="auth-tabs" role="tablist">
         <button

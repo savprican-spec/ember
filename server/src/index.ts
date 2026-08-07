@@ -77,12 +77,15 @@ app.get('/api/media/:filename', (req, res) => {
 })
 
 app.patch('/api/me', requireAuth, (req, res) => {
-  const { displayName, bio, lookingFor, mapVisible, avatarUrl, lat, lng } = req.body ?? {}
+  const { displayName, bio, lookingFor, lookingNote, mapVisible, avatarUrl, lat, lng } = req.body ?? {}
   const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.user!.id) as Record<string, unknown>
+  const premium = isPremium(row)
 
-  if (mapVisible === true && !isPremium(row)) {
+  const wantsEncounterPost =
+    lookingFor !== undefined || lookingNote !== undefined || mapVisible === true
+  if (wantsEncounterPost && !premium) {
     return res.status(402).json({
-      error: 'Premium ($9.99/mo) is required to appear on the meetup map',
+      error: 'Premium ($9.99/mo) unlocks “right now” posts and appearing for casual encounters',
       code: 'PREMIUM_REQUIRED',
     })
   }
@@ -92,11 +95,20 @@ app.patch('/api/me', requireAuth, (req, res) => {
   const nextLng =
     lng === null ? null : typeof lng === 'number' && Number.isFinite(lng) ? lng : row.lng
 
+  const nextLooking = lookingFor === undefined ? row.looking_for : String(lookingFor).slice(0, 40)
+  const nextNote =
+    lookingNote === undefined ? row.looking_note || '' : String(lookingNote).slice(0, 140)
+  const lookingChanged =
+    lookingFor !== undefined || lookingNote !== undefined || mapVisible === true
+  const postedAt = lookingChanged ? new Date().toISOString() : row.looking_posted_at
+
   db.prepare(
     `UPDATE users SET
       display_name = ?,
       bio = ?,
       looking_for = ?,
+      looking_note = ?,
+      looking_posted_at = ?,
       map_visible = ?,
       avatar_url = ?,
       lat = ?,
@@ -106,7 +118,9 @@ app.patch('/api/me', requireAuth, (req, res) => {
   ).run(
     displayName ?? row.display_name,
     bio ?? row.bio,
-    lookingFor ?? row.looking_for,
+    nextLooking,
+    nextNote,
+    postedAt,
     mapVisible === undefined ? row.map_visible : mapVisible ? 1 : 0,
     avatarUrl ?? row.avatar_url,
     nextLat,

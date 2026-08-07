@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Camera, Eye, EyeOff, MapPin, Settings } from 'lucide-react'
+import { Camera, Eye, EyeOff, Flame, MapPin, Settings } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { LOOKING_HINTS, LOOKING_OPTIONS, type LookingOption } from '../data/looking'
 import { api, mediaUrl, track, type ApiError } from '../lib/api'
 
 type MineUpload = {
@@ -24,7 +25,8 @@ export function ProfilePage() {
   const { user, logout, refresh } = useAuth()
   const navigate = useNavigate()
   const [visible, setVisible] = useState(false)
-  const [looking, setLooking] = useState('Right now')
+  const [looking, setLooking] = useState<LookingOption>('Right now')
+  const [note, setNote] = useState('')
   const [uploads, setUploads] = useState<MineUpload[]>([])
   const [following, setFollowing] = useState<FollowUser[]>([])
   const [busy, setBusy] = useState(false)
@@ -35,7 +37,8 @@ export function ProfilePage() {
   useEffect(() => {
     if (!user) return
     setVisible(user.mapVisible)
-    setLooking(user.lookingFor || 'Tonight')
+    setLooking((user.lookingFor as LookingOption) || 'Right now')
+    setNote(user.lookingNote || '')
     api<{ uploads: MineUpload[] }>('/api/uploads/mine')
       .then((d) => setUploads(d.uploads))
       .catch(() => undefined)
@@ -45,15 +48,22 @@ export function ProfilePage() {
     track('profile_view', 'user', user.id)
   }, [user])
 
-  async function savePrefs(nextVisible = visible, nextLooking = looking) {
-    if (!user) return
+  async function saveEncounter(nextVisible = visible, nextLooking = looking, nextNote = note) {
+    if (!user?.premium) {
+      navigate('/premium')
+      return
+    }
     try {
       await api('/api/me', {
         method: 'PATCH',
-        body: JSON.stringify({ mapVisible: nextVisible, lookingFor: nextLooking }),
+        body: JSON.stringify({
+          mapVisible: nextVisible,
+          lookingFor: nextLooking,
+          lookingNote: nextNote,
+        }),
       })
       await refresh()
-      setMessage(nextVisible ? 'You’re visible on the meetup map.' : 'Hidden from the meetup map.')
+      setMessage(nextVisible ? 'Live for casual encounters nearby.' : 'Hidden from the encounter map.')
     } catch (err) {
       const apiErr = err as ApiError
       if (apiErr.code === 'PREMIUM_REQUIRED' || apiErr.status === 402) {
@@ -140,62 +150,93 @@ export function ProfilePage() {
             {user.displayName}, {user.age}
           </h2>
           <p className="profile-hero__handle">@{user.handle}</p>
-          <p className="profile-hero__bio">{user.bio || 'Free basic profile — upload, message, follow.'}</p>
+          <p className="profile-hero__bio">{user.bio || 'Free basic: feed, messages, follows. Premium is for live encounters.'}</p>
           <div className="tag-row">
             <span className="tag">nsfw</span>
-            <span className="tag">{user.lookingFor}</span>
+            {user.premium && user.lookingFor ? <span className="tag">{user.lookingFor}</span> : null}
             <span className={`tag ${user.premium ? '' : 'muted'}`}>{user.premium ? 'Premium' : 'Basic'}</span>
           </div>
         </div>
       </section>
 
-      <section className="profile-panel">
-        <div className="toggle-row">
-          <div>
-            <strong>Visible on map</strong>
-            <p>
-              {user.premium
-                ? 'Others nearby can find you for casual meetups.'
-                : 'Premium ($9.99/mo) is required to appear for meetups. You can still browse the map for free.'}
-            </p>
-          </div>
-          {user.premium ? (
-            <button
-              type="button"
-              className={`toggle ${visible ? 'is-on' : ''}`}
-              aria-pressed={visible}
-              onClick={() => {
-                const next = !visible
-                setVisible(next)
-                void savePrefs(next, looking)
-              }}
-            >
-              {visible ? <Eye size={16} /> : <EyeOff size={16} />}
-              {visible ? 'On' : 'Off'}
-            </button>
-          ) : (
+      <section className="profile-panel encounter-panel">
+        <div className="page-header__row">
+          <h3>
+            <Flame size={16} style={{ marginRight: 6, verticalAlign: '-2px' }} />
+            Casual encounters
+          </h3>
+          {!user.premium && (
             <Link className="ghost-chip" to="/premium">
-              Go Premium
+              $9.99/mo
             </Link>
           )}
         </div>
+        <p className="form-hint">Not dating — post what you want right now and appear nearby.</p>
 
-        <label className="field">
-          <span>Looking for</span>
-          <select
-            value={looking}
-            onChange={(e) => {
-              setLooking(e.target.value)
-              void savePrefs(visible, e.target.value)
-            }}
-          >
-            <option>Right now</option>
-            <option>Hosting</option>
-            <option>Traveling</option>
-            <option>Car</option>
-            <option>Tonight</option>
-          </select>
-        </label>
+        {user.premium ? (
+          <>
+            <div className="toggle-row">
+              <div>
+                <strong>Live on encounter map</strong>
+                <p>Others nearby see your pin and what you’re looking for.</p>
+              </div>
+              <button
+                type="button"
+                className={`toggle ${visible ? 'is-on' : ''}`}
+                aria-pressed={visible}
+                onClick={() => {
+                  const next = !visible
+                  setVisible(next)
+                  void saveEncounter(next, looking, note)
+                }}
+              >
+                {visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                {visible ? 'Live' : 'Off'}
+              </button>
+            </div>
+
+            <label className="field">
+              <span>Looking for</span>
+              <select
+                value={looking}
+                onChange={(e) => {
+                  const next = e.target.value as LookingOption
+                  setLooking(next)
+                  void saveEncounter(visible, next, note)
+                }}
+              >
+                {LOOKING_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <small className="form-hint">{LOOKING_HINTS[looking]}</small>
+            </label>
+
+            <label className="field">
+              <span>Right now note</span>
+              <textarea
+                rows={2}
+                maxLength={140}
+                value={note}
+                placeholder="Be direct about the meet…"
+                onChange={(e) => setNote(e.target.value)}
+                onBlur={() => void saveEncounter(visible, looking, note)}
+              />
+            </label>
+            <Link className="btn btn--primary" to="/map">
+              Open map & post
+            </Link>
+          </>
+        ) : (
+          <div className="encounter-locked">
+            <p>Premium unlocks posting “Right now,” hosting/cruising/car/hotel intent, and appearing on the map.</p>
+            <Link className="btn btn--primary" to="/premium">
+              Unlock encounters
+            </Link>
+          </div>
+        )}
 
         <div className="stat-line">
           <MapPin size={16} />

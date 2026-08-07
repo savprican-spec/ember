@@ -11,7 +11,7 @@ Adults-only web app: TikTok-style vertical clip feed + Sniffies-style map for ca
 - **18+ age gate** before entry
 - **For You feed** — free XXX vertical clips (promote uploads)
 - **Free basic profile** — message, upload, follow/add people, browse the map
-- **Premium map meetups** — $9.99/mo to appear on the map for casual encounters
+- **Premium casual encounters** — $9.99/mo to post “right now” / looking-for and go live on the map (not dating)
 - **Inbox** — direct threads
 - **Admin hub** (`/#/admin`) — users, Premium status, MRR, all uploads (including private), messages, reports, activity
 

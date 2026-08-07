@@ -57,7 +57,7 @@ export const clips: VideoClip[] = [
     comments: 421,
     distance: '2.1 mi',
     online: false,
-    looking: 'Traveling',
+    looking: 'Cruising',
     videoUrl: '/clips/clip3.mp4',
     poster: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80&auto=format',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop',

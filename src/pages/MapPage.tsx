@@ -75,8 +75,9 @@ export function MapPage() {
     setNote(user.lookingNote || '')
   }, [user])
 
-  const people = useMemo(() => {
-    const source = livePeople.length > 0 ? livePeople : nearbyPeople.map((p) => ({ ...p, isLive: false }))
+  const people = useMemo((): MapPerson[] => {
+    const source: MapPerson[] =
+      livePeople.length > 0 ? livePeople : nearbyPeople.map((p) => ({ ...p, isLive: false, rightNow: p.looking === 'Right now' }))
     if (filter === 'All') return source
     return source.filter((p) => p.looking === filter)
   }, [filter, livePeople])

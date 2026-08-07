@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, MapPin } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Volume2, VolumeX, MapPin, Flag } from 'lucide-react'
 import type { VideoClip } from '../data/videos'
 import { formatCount } from '../data/videos'
-import { track } from '../lib/api'
+import { api, track } from '../lib/api'
 
 type VideoCardProps = {
   clip: VideoClip
@@ -111,6 +111,38 @@ function toggleLike() {
           aria-label={muted ? 'Unmute' : 'Mute'}
         >
           {muted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+        </button>
+        <button
+          type="button"
+          className="rail-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            const reason = window.prompt(
+              'Report reason: spam, harassment, underage_suspicion, nonconsensual, scam, illegal, other',
+              'spam',
+            )
+            if (!reason) return
+            void api('/api/reports', {
+              method: 'POST',
+              body: JSON.stringify({
+                targetType: 'upload',
+                targetId: clip.id,
+                reason,
+                details: `Feed clip @${clip.handle}: ${clip.caption}`,
+              }),
+            })
+              .then(() => {
+                window.alert('Report sent to Ember admin.')
+                track('report_create', 'upload', clip.id)
+              })
+              .catch((err) => {
+                window.alert(err instanceof Error ? err.message : 'Report failed — sign in & verify first')
+              })
+          }}
+          aria-label="Report"
+        >
+          <Flag size={22} />
+          <span>Report</span>
         </button>
       </aside>
 

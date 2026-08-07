@@ -9,6 +9,8 @@ import { uploadsRouter } from './routes/uploads.js'
 import { eventsRouter } from './routes/events.js'
 import { adminRouter } from './routes/admin.js'
 import { verifyRouter, handleStripeWebhook } from './routes/verify.js'
+import { messagesRouter } from './routes/messages.js'
+import { reportsRouter } from './routes/reports.js'
 import { requireAuth, requireAdmin, type AuthUser } from './auth.js'
 import { db } from './db.js'
 
@@ -41,6 +43,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRouter)
 app.use('/api/verify', verifyRouter)
 app.use('/api/uploads', uploadsRouter)
+app.use('/api/messages', messagesRouter)
+app.use('/api/reports', reportsRouter)
 app.use('/api/events', eventsRouter)
 app.use('/api/admin', adminRouter)
 

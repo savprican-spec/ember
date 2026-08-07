@@ -22,7 +22,7 @@ export function AdminLayout() {
       <aside className="admin-nav">
         <p className="brand brand--sm">EMBER</p>
         <h1>Admin hub</h1>
-        <p className="admin-nav__sub">Creator view — includes private albums</p>
+        <p className="admin-nav__sub">Full operator view — private albums, inboxes, reports. Nothing hidden.</p>
         <nav>
           <NavLink to="/admin" end className={({ isActive }) => (isActive ? 'active' : '')}>
             Overview
@@ -32,6 +32,12 @@ export function AdminLayout() {
           </NavLink>
           <NavLink to="/admin/uploads" className={({ isActive }) => (isActive ? 'active' : '')}>
             Uploads
+          </NavLink>
+          <NavLink to="/admin/messages" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Messages
+          </NavLink>
+          <NavLink to="/admin/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Reports
           </NavLink>
           <NavLink to="/admin/events" className={({ isActive }) => (isActive ? 'active' : '')}>
             Activity

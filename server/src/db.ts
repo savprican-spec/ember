@@ -70,12 +70,49 @@ db.exec(`
     completed_at TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS conversation_members (
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_read_at TEXT,
+    PRIMARY KEY (conversation_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    resolved_by TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
   CREATE INDEX IF NOT EXISTS idx_uploads_created ON uploads(created_at);
   CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at);
   CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at);
   CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
   CREATE INDEX IF NOT EXISTS idx_verifications_user ON verifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_conversation_members_user ON conversation_members(user_id);
 `)
 
 function ensureColumn(table: string, column: string, definition: string) {

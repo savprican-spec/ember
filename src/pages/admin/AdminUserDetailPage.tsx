@@ -38,6 +38,15 @@ type Detail = {
     createdAt: string
     completedAt?: string
   }>
+  conversations?: Array<{ id: string; updatedAt: string; messageCount: number; preview: string }>
+  reportsAbout?: Array<{
+    id: string
+    reason: string
+    status: string
+    reporterName: string
+    reporterHandle: string
+    createdAt: string
+  }>
   note: string
 }
 
@@ -93,6 +102,34 @@ export function AdminUserDetailPage() {
           </li>
         ))}
         {(data.verifications || []).length === 0 && <li className="muted">No verification attempts.</li>}
+      </ul>
+
+      <h3>Inbox threads ({(data.conversations || []).length})</h3>
+      <ul className="admin-list">
+        {(data.conversations || []).map((c) => (
+          <li key={c.id}>
+            <Link to="/admin/messages">
+              <strong>{c.messageCount} messages</strong>
+              <span>{c.preview || 'No preview'}</span>
+              <time>{new Date(c.updatedAt).toLocaleString()}</time>
+            </Link>
+          </li>
+        ))}
+        {(data.conversations || []).length === 0 && <li className="muted">No conversations.</li>}
+      </ul>
+
+      <h3>Reports about this user</h3>
+      <ul className="admin-list">
+        {(data.reportsAbout || []).map((r) => (
+          <li key={r.id}>
+            <strong>{r.reason}</strong> · {r.status}
+            <span>
+              by @{r.reporterHandle} ({r.reporterName})
+            </span>
+            <time>{new Date(r.createdAt).toLocaleString()}</time>
+          </li>
+        ))}
+        {(data.reportsAbout || []).length === 0 && <li className="muted">No reports against this user.</li>}
       </ul>
 
       <h3>All uploads ({uploads.length})</h3>

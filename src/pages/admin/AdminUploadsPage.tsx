@@ -30,8 +30,8 @@ export function AdminUploadsPage() {
   return (
     <div className="admin-page">
       <header>
-        <h2>Uploads</h2>
-        <p>Every clip and photo — public and private albums.</p>
+        <h2>All uploads</h2>
+        <p>Every clip and photo of every kind — public, private, followers. Nothing hidden.</p>
       </header>
       <div className="filter-row">
         {['all', 'public', 'private', 'followers'].map((v) => (

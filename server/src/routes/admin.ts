@@ -62,6 +62,9 @@ adminRouter.get('/overview', (_req, res) => {
       .prepare(`SELECT COALESCE(SUM(amount_cents), 0) AS c FROM verifications WHERE status = 'paid'`)
       .get() as { c: number }
   ).c
+  const openReports = (db.prepare(`SELECT COUNT(*) AS c FROM reports WHERE status = 'open'`).get() as { c: number }).c
+  const messages = (db.prepare(`SELECT COUNT(*) AS c FROM messages`).get() as { c: number }).c
+  const conversations = (db.prepare(`SELECT COUNT(*) AS c FROM conversations`).get() as { c: number }).c
 
   const recentUsers = db
     .prepare(`SELECT * FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT 8`)
@@ -72,6 +75,14 @@ adminRouter.get('/overview', (_req, res) => {
       `SELECT u.*, us.display_name, us.handle, us.email
        FROM uploads u JOIN users us ON us.id = u.user_id
        ORDER BY u.created_at DESC LIMIT 8`,
+    )
+    .all() as Record<string, unknown>[]
+
+  const recentReports = db
+    .prepare(
+      `SELECT r.*, us.display_name AS reporter_name, us.handle AS reporter_handle
+       FROM reports r JOIN users us ON us.id = r.reporter_id
+       ORDER BY r.created_at DESC LIMIT 8`,
     )
     .all() as Record<string, unknown>[]
 
@@ -87,10 +98,31 @@ adminRouter.get('/overview', (_req, res) => {
     .all()
 
   res.json({
-    stats: { users, verifiedUsers, uploads, privateUploads, events24h, verifyRevenueCents: verifyRevenue },
+    stats: {
+      users,
+      verifiedUsers,
+      uploads,
+      privateUploads,
+      events24h,
+      verifyRevenueCents: verifyRevenue,
+      openReports,
+      messages,
+      conversations,
+    },
     recentUsers: recentUsers.map(mapUser),
     recentUploads: recentUploads.map(mapUpload),
+    recentReports: recentReports.map((r) => ({
+      id: r.id,
+      reason: r.reason,
+      status: r.status,
+      targetType: r.target_type,
+      targetId: r.target_id,
+      reporterName: r.reporter_name,
+      reporterHandle: r.reporter_handle,
+      createdAt: r.created_at,
+    })),
     topEvents,
+    note: 'Admin hub sees everything: private uploads, inbox messages, and reports.',
   })
 })
 
@@ -171,7 +203,40 @@ adminRouter.get('/users/:id', (req, res) => {
       createdAt: v.created_at,
       completedAt: v.completed_at,
     })),
-    note: 'Admin view includes private album uploads and age-verification payments.',
+    conversations: db
+      .prepare(
+        `SELECT c.id, c.updated_at,
+           (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count,
+           (SELECT body FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS preview
+         FROM conversations c
+         JOIN conversation_members cm ON cm.conversation_id = c.id
+         WHERE cm.user_id = ?
+         ORDER BY c.updated_at DESC`,
+      )
+      .all(row.id)
+      .map((c) => ({
+        id: (c as Record<string, unknown>).id,
+        updatedAt: (c as Record<string, unknown>).updated_at,
+        messageCount: (c as Record<string, unknown>).message_count,
+        preview: (c as Record<string, unknown>).preview,
+      })),
+    reportsAbout: db
+      .prepare(
+        `SELECT r.*, us.display_name AS reporter_name, us.handle AS reporter_handle
+         FROM reports r JOIN users us ON us.id = r.reporter_id
+         WHERE r.target_type = 'user' AND r.target_id = ?
+         ORDER BY r.created_at DESC`,
+      )
+      .all(row.id)
+      .map((r) => ({
+        id: (r as Record<string, unknown>).id,
+        reason: (r as Record<string, unknown>).reason,
+        status: (r as Record<string, unknown>).status,
+        reporterName: (r as Record<string, unknown>).reporter_name,
+        reporterHandle: (r as Record<string, unknown>).reporter_handle,
+        createdAt: (r as Record<string, unknown>).created_at,
+      })),
+    note: 'Admin view includes private albums, inbox threads, reports, and verification payments.',
   })
 })
 
@@ -225,6 +290,148 @@ adminRouter.get('/events', (req, res) => {
       targetId: e.target_id,
       meta: JSON.parse(String(e.meta_json || '{}')),
       createdAt: e.created_at,
+    })),
+  })
+})
+
+adminRouter.get('/reports', (req, res) => {
+  const status = String(req.query.status ?? 'open')
+  let rows: Record<string, unknown>[]
+  if (status === 'all') {
+    rows = db
+      .prepare(
+        `SELECT r.*, us.display_name AS reporter_name, us.handle AS reporter_handle, us.email AS reporter_email
+         FROM reports r JOIN users us ON us.id = r.reporter_id
+         ORDER BY r.created_at DESC LIMIT 400`,
+      )
+      .all() as Record<string, unknown>[]
+  } else {
+    rows = db
+      .prepare(
+        `SELECT r.*, us.display_name AS reporter_name, us.handle AS reporter_handle, us.email AS reporter_email
+         FROM reports r JOIN users us ON us.id = r.reporter_id
+         WHERE r.status = ?
+         ORDER BY r.created_at DESC LIMIT 400`,
+      )
+      .all(status) as Record<string, unknown>[]
+  }
+
+  res.json({
+    reports: rows.map((r) => ({
+      id: r.id,
+      reporterId: r.reporter_id,
+      reporterName: r.reporter_name,
+      reporterHandle: r.reporter_handle,
+      reporterEmail: r.reporter_email,
+      targetType: r.target_type,
+      targetId: r.target_id,
+      reason: r.reason,
+      details: r.details,
+      status: r.status,
+      createdAt: r.created_at,
+      resolvedAt: r.resolved_at,
+      resolvedBy: r.resolved_by,
+    })),
+  })
+})
+
+adminRouter.patch('/reports/:id', (req, res) => {
+  const status = String(req.body?.status || '')
+  if (!['open', 'reviewing', 'resolved', 'dismissed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' })
+  }
+  const now = new Date().toISOString()
+  const resolvedAt = status === 'resolved' || status === 'dismissed' ? now : null
+  const result = db
+    .prepare(
+      `UPDATE reports SET status = ?, resolved_at = ?, resolved_by = ? WHERE id = ?`,
+    )
+    .run(status, resolvedAt, req.user!.id, req.params.id)
+  if (!result.changes) return res.status(404).json({ error: 'Report not found' })
+  res.json({ ok: true })
+})
+
+adminRouter.get('/messages', (_req, res) => {
+  const conversations = db
+    .prepare(`SELECT id, created_at, updated_at FROM conversations ORDER BY updated_at DESC LIMIT 300`)
+    .all() as Array<{ id: string; created_at: string; updated_at: string }>
+
+  const list = conversations.map((c) => {
+    const members = db
+      .prepare(
+        `SELECT u.id, u.display_name, u.handle, u.email, u.avatar_url
+         FROM conversation_members cm JOIN users u ON u.id = cm.user_id
+         WHERE cm.conversation_id = ?`,
+      )
+      .all(c.id) as Record<string, unknown>[]
+    const last = db
+      .prepare(
+        `SELECT body, created_at, sender_id FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(c.id) as { body: string; created_at: string; sender_id: string } | undefined
+    const count = (
+      db.prepare(`SELECT COUNT(*) AS c FROM messages WHERE conversation_id = ?`).get(c.id) as { c: number }
+    ).c
+    return {
+      id: c.id,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+      messageCount: count,
+      preview: last?.body || '',
+      lastMessageAt: last?.created_at || c.updated_at,
+      members: members.map((m) => ({
+        id: m.id,
+        displayName: m.display_name,
+        handle: m.handle,
+        email: m.email,
+        avatarUrl: m.avatar_url,
+      })),
+    }
+  })
+
+  res.json({ conversations: list, note: 'Full inbox visibility for operator review.' })
+})
+
+adminRouter.get('/messages/:conversationId', (req, res) => {
+  const conversationId = req.params.conversationId
+  const conversation = db.prepare(`SELECT * FROM conversations WHERE id = ?`).get(conversationId)
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
+
+  const members = db
+    .prepare(
+      `SELECT u.id, u.display_name, u.handle, u.email, u.avatar_url
+       FROM conversation_members cm JOIN users u ON u.id = cm.user_id
+       WHERE cm.conversation_id = ?`,
+    )
+    .all(conversationId) as Record<string, unknown>[]
+
+  const messages = db
+    .prepare(
+      `SELECT m.*, u.display_name, u.handle, u.email
+       FROM messages m JOIN users u ON u.id = m.sender_id
+       WHERE m.conversation_id = ?
+       ORDER BY m.created_at ASC
+       LIMIT 1000`,
+    )
+    .all(conversationId) as Record<string, unknown>[]
+
+  res.json({
+    id: conversationId,
+    members: members.map((m) => ({
+      id: m.id,
+      displayName: m.display_name,
+      handle: m.handle,
+      email: m.email,
+      avatarUrl: m.avatar_url,
+    })),
+    messages: messages.map((m) => ({
+      id: m.id,
+      body: m.body,
+      createdAt: m.created_at,
+      senderId: m.sender_id,
+      senderName: m.display_name,
+      senderHandle: m.handle,
+      senderEmail: m.email,
     })),
   })
 })

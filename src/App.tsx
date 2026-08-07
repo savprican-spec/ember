@@ -16,6 +16,8 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AdminUserDetailPage } from './pages/admin/AdminUserDetailPage'
 import { AdminUploadsPage } from './pages/admin/AdminUploadsPage'
 import { AdminEventsPage } from './pages/admin/AdminEventsPage'
+import { AdminReportsPage } from './pages/admin/AdminReportsPage'
+import { AdminMessagesPage } from './pages/admin/AdminMessagesPage'
 
 function RequirePaidAge({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -53,6 +55,8 @@ function AppRoutes() {
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="users/:id" element={<AdminUserDetailPage />} />
             <Route path="uploads" element={<AdminUploadsPage />} />
+            <Route path="messages" element={<AdminMessagesPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
             <Route path="events" element={<AdminEventsPage />} />
           </Route>
 

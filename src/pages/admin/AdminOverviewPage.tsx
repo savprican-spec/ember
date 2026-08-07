@@ -10,6 +10,9 @@ type Overview = {
     privateUploads: number
     events24h: number
     verifyRevenueCents?: number
+    openReports?: number
+    messages?: number
+    conversations?: number
   }
   recentUsers: Array<{ id: string; displayName: string; handle: string; email: string; createdAt: string; ageVerified?: boolean }>
   recentUploads: Array<{
@@ -22,7 +25,17 @@ type Overview = {
     handle: string
     createdAt: string
   }>
+  recentReports?: Array<{
+    id: string
+    reason: string
+    status: string
+    targetType: string
+    reporterName: string
+    reporterHandle: string
+    createdAt: string
+  }>
   topEvents: Array<{ type: string; count: number }>
+  note?: string
 }
 
 export function AdminOverviewPage() {
@@ -41,8 +54,8 @@ export function AdminOverviewPage() {
   return (
     <div className="admin-page">
       <header>
-        <h2>Overview</h2>
-        <p>New registrations, uploads (including private), and interaction pulse.</p>
+        <h2>Ember control hub</h2>
+        <p>{data.note || 'Everything on the platform — users, media, inboxes, reports.'}</p>
       </header>
 
       <div className="admin-stats">
@@ -50,6 +63,9 @@ export function AdminOverviewPage() {
         <div><strong>{data.stats.verifiedUsers ?? 0}</strong><span>Verified</span></div>
         <div><strong>{data.stats.uploads}</strong><span>Uploads</span></div>
         <div><strong>{data.stats.privateUploads}</strong><span>Private</span></div>
+        <div><strong>{data.stats.openReports ?? 0}</strong><span>Open reports</span></div>
+        <div><strong>{data.stats.conversations ?? 0}</strong><span>Conversations</span></div>
+        <div><strong>{data.stats.messages ?? 0}</strong><span>Messages</span></div>
         <div><strong>{data.stats.events24h}</strong><span>Events 24h</span></div>
         <div>
           <strong>
@@ -102,15 +118,21 @@ export function AdminOverviewPage() {
         </section>
 
         <section>
-          <h3>Top events (7d)</h3>
+          <div className="page-header__row">
+            <h3>Open reports</h3>
+            <Link to="/admin/reports">View all</Link>
+          </div>
           <ul className="admin-list">
-            {data.topEvents.map((e) => (
-              <li key={e.type} className="admin-event-stat">
-                <strong>{e.type}</strong>
-                <span>{e.count}</span>
+            {(data.recentReports || []).map((r) => (
+              <li key={r.id}>
+                <strong>{r.reason}</strong>
+                <span>
+                  {r.targetType} · by @{r.reporterHandle}
+                </span>
+                <time>{new Date(r.createdAt).toLocaleString()}</time>
               </li>
             ))}
-            {data.topEvents.length === 0 && <li className="muted">No activity yet.</li>}
+            {(data.recentReports || []).length === 0 && <li className="muted">No reports yet.</li>}
           </ul>
         </section>
       </div>
